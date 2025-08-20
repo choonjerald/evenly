@@ -13,7 +13,16 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
-import type * as messages from "../messages.js";
+import type * as activity from "../activity.js";
+import type * as auth from "../auth.js";
+import type * as categories from "../categories.js";
+import type * as expenses from "../expenses.js";
+import type * as groups from "../groups.js";
+import type * as invites from "../invites.js";
+import type * as lib_splits from "../lib/splits.js";
+import type * as members from "../members.js";
+import type * as notifications from "../notifications.js";
+import type * as settlements from "../settlements.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -24,7 +33,16 @@ import type * as messages from "../messages.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  messages: typeof messages;
+  activity: typeof activity;
+  auth: typeof auth;
+  categories: typeof categories;
+  expenses: typeof expenses;
+  groups: typeof groups;
+  invites: typeof invites;
+  "lib/splits": typeof lib_splits;
+  members: typeof members;
+  notifications: typeof notifications;
+  settlements: typeof settlements;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

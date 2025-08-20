@@ -1,0 +1,114 @@
+Gemini CLI prompt
+=================
+
+You are a senior full‑stack engineer expert in Next.js (App Router), TypeScript, Convex, Clerk, and shadcn/ui. You will **extend an existing repo** (a starter app that already wires up Clerk auth, Convex, and shadcn) to implement the **“Evenly” expense‑sharing app** per the product/design spec summarized below.
+
+Context you must follow
+-----------------------
+
+*   Tech stack: **Next.js (App Router, TypeScript), Convex (DB + realtime), Clerk (auth), shadcn/ui, Tailwind**.
+*   The repo already includes basic groups, expenses, balances, and settlements, with equal splits only. File layout highlights:
+    *   `app/` (routing, including `/group/[id]`)
+    *   `components/` (e.g., `add-expense-dialog.tsx`, `balances.tsx`, `group-card.tsx`)
+    *   `convex/` (schema + server functions: `groups.ts`, `expenses.ts`, `balances.ts`, `_auth.ts`)
+    *   `lib/` (providers, currencies, utils)
+*   Keep money in **minor units (integers)**. Keep code idiomatic and strongly typed.
+*   Design/UI components should use shadcn/ui (Dialog, Drawer, Input, Select, Table, Tabs, Avatar, DropdownMenu, Badge, Toast, etc.). Use Tailwind for layout.
+
+What to build (MVP → v1.1 scope)
+--------------------------------
+
+Implement the **MVP** end‑to‑end and scaffold **v1.1** hooks so they’re easy to finish:
+
+### MVP (ship this)
+1.  **Auth & profiles**: Sign in via Clerk; use Clerk profile name & avatar in UI.
+2.  **Groups**: Create groups with name and homeCurrency; invite members by **email**; accept invite flow. Roles: owner/admin/member/viewer (enforce read/write rules minimally).
+3.  **Categories**: CRUD per group with name, color, emoji, sortOrder; use in expense forms and filters.
+4.  **Expenses**: Add expense with: payer, amount, currency, **date**, category, memo; split type **equal / shares / percentage / manual**; multiple participants; optimistic UI + undo (soft delete).
+5.  **Balances**: Realtime per group/person balances based on double‑entry math (credits to payer; debits to participants).
+6.  **Settlement suggestions**: Compute suggested transfers (greedy/min‑cost style) to minimize edges; show friendly “Settle up” UI; allow recording a manual payment.
+7.  **Activity feed & notifications (basic)**: Log expense create/edit/delete and payments; simple unread count per user; show recent activity on group page.
+8.  **Receipts**: Upload image/PDF (Convex storage or signed URL route is fine); attach to expense; show thumbnail & download. (OCR is stretch; skip.)
+9.  **Export**: CSV export for group or single member.
+10.  **Charts (basic)**: Spend by category/person with Recharts (bar/pie); monthly trend line.
+11.  **Accessibility & UX polish**: Keyboard navigation, toasts, empty states, loading skeletons.
+
+### v1.1 scaffolding (don’t fully implement, just data model + stubs)
+*   **Recurring expenses** + reminders (leave scheduled job skeleton).
+*   **Multi‑currency plumbing**: Store original currency; capture fx rate at entry; convert to group.homeCurrency for balances (use a stored rate; no revaluation yet).
+*   **Audit / versioning**: Track `updatedAt`, `deletedAt`, and minimal before/after in activity.
+
+Data model & server rules
+-------------------------
+Extend the Convex schema and queries/mutations to match:
+*   **Entities**: users, groups, members, categories, expenses, splits, payments, receipts, activity, notifications, invites.
+*   **Indexes**: members by group/user; expenses by group/date; splits by expense; payments by group/time; activity by group/time; notifications by user/unread; invites by group/email.
+*   **Permissions**: Only members can read group data. Owner/admin can manage roles & categories; payer/creator/admin/owner can edit an expense; payments are append‑only (allow “void” to create reversing entry).
+
+**Math rules (must implement)**
+*   **Balances** (home currency): for each expense, credit payer total; debit each participant share. For payments, subtract from sender and add to receiver.
+*   **Split methods**:
+    *   equal: divide total; distribute remainder deterministically (index order).
+    *   shares: weights wᵢ → each owes total * (wᵢ / Σw).
+    *   percent: pᵢ sum to 1; each owes total * pᵢ.
+    *   manual: provided minor units must sum to total; validate.
+*   Deterministic rounding in integers; no floating point.
+
+Required changes (make these concrete)
+--------------------------------------
+1.  **Schema** (`convex/schema.ts`): add/extend tables & indexes for categories, payments, receipts, activity, notifications, invites; extend `expenses` & `splits` with fields (date, memo, method, weight/percent/manual, etc.).
+2.  **Auth helpers** (`convex/_auth.ts`): keep `requireUser`; add `assertMemberRole(ctx, groupId, roles)` and `isMember`.
+3.  **Groups & members** (`convex/groups.ts` + new `members.ts`, `invites.ts`): create group; invite by email; accept invite; update roles; leave group.
+4.  **Expenses** (`convex/expenses.ts`):
+    *   `addExpense` supporting **equal/shares/percent/manual**; compute splits server‑side.
+    *   `editExpense`, `deleteExpense` (soft delete); append activity.
+    *   `listExpenses(groupId, filters)` by date/category/member.
+5.  **Balances** (`convex/balances.ts`): compute from expenses + payments in home currency.
+6.  **Settlements** (`convex/settlements.ts`): `suggestSettlements(groupId)` (greedy), `recordPayment`, `voidPayment`.
+7.  **Categories** (`convex/categories.ts`) CRUD.
+8.  **Activity & notifications** (`convex/activity.ts`, `convex/notifications.ts`).
+9.  **Receipts**: file upload route (Next API or Convex storage); link to `receipts` table.
+10.  **Exports**: server query to produce CSV rows; API route to stream CSV.
+11.  **Scheduled jobs skeleton** for recurring/reminders.
+
+UI/Routes (App Router)
+----------------------
+*   `/` Dashboard: your groups, recent activity, what you owe/are owed, quick add expense.
+*   `/group/[id]` Overview: balances, settlement suggestions, charts, activity, “Add expense” dialog.
+*   `/group/[id]/expenses` Table + filters (date range, member, category, text search).
+*   `/group/[id]/members` Member list & roles; invite by email.
+*   `/group/[id]/reports` CSV exports and statements.
+
+**UI specifics**
+*   Rework `AddExpenseDialog` to support split modes (tabs or segmented control); include payer, date picker, category select, memo, dynamic participants list, shares/percent/manual inputs with validation and computed totals; optimistic add + toast with UNDO.
+*   Settlement list shows suggested transfers with “Copy details” and “Mark as paid” actions.
+*   Activity feed component with avatars & timestamps.
+*   Charts using Recharts (category bar, person pie, monthly trend line).
+*   Use shadcn components (Dialog, Drawer, Input, Select, DatePicker, Tabs, Table, Badge, DropdownMenu, Toast, Avatar, Tooltip, Skeleton).
+*   Consistent currency formatting helpers.
+
+Deliverables
+------------
+1.  **Code changes** across `convex/*`, `app/*`, and `components/*` implementing MVP.
+2.  **New files** you deem necessary (e.g., `convex/settlements.ts`, `convex/categories.ts`, `convex/activity.ts`, `convex/notifications.ts`, `convex/invites.ts`, `app/api/export/route.ts`, `components/settlements.tsx`, `components/activity-feed.tsx`, `components/expense-form/*`).
+3.  **Type‑safe utilities** for currency math, split computation, and CSV formatting.
+4.  **Minimal tests** for ledger math and split validation (pure functions).
+5.  **Instructions** in output for any required env vars or one‑time setup.
+
+Style & constraints
+-------------------
+*   TypeScript everywhere; no `any`.
+*   Keep **minor units** for all math; format only at display.
+*   Write small, pure helpers for split math and settlement suggestions.
+*   Favor server‑validated inputs via Convex values schemas; validate split totals/percents.
+*   Secure reads/writes by membership & role checks.
+*   Keep code close to current structure and naming.
+
+What to output
+--------------
+*   A **step‑by‑step plan** (bulleted), then a **git‑style patch or file‑by‑file diffs** with full contents for each changed/added file, grouped by path.
+*   Include brief reasoning near tricky parts (split math, settlement algorithm, permission checks).
+*   After code, list any **follow‑up commands** I should run (e.g., `npx convex dev` to regen code, `shadcn add …` components).
+*   If any assumptions were needed, state them clearly.
+
+Begin by printing the plan, then the diffs.
