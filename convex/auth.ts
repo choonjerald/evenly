@@ -1,5 +1,4 @@
 import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
 
 // --- READ: getMe (no writes allowed in queries)
 export const getMe = query({
@@ -29,13 +28,27 @@ export const ensureUser = mutation({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
 
-    if (existing) return existing;
+    const name = identity.name ?? identity.nickname ?? "User";
+    const email = identity.email ?? undefined;
+    // ✅ Clerk/Convex identity exposes `pictureUrl` (avatar)
+    const avatarUrl = identity.pictureUrl ?? identity.profileUrl ?? undefined;
+
+    if (existing) {
+      const updates: any = {};
+      if (existing.name !== name) updates.name = name;
+      if (existing.email !== email) updates.email = email;
+      if (existing.avatarUrl !== avatarUrl) updates.avatarUrl = avatarUrl;
+      if (Object.keys(updates).length) {
+        await ctx.db.patch(existing._id, updates);
+      }
+      return await ctx.db.get(existing._id);
+    }
 
     const userId = await ctx.db.insert("users", {
       clerkId: identity.subject,
-      name: identity.name ?? identity.nickname ?? "User",
-      email: identity.email ?? undefined,
-      avatarUrl: identity.profileUrl ?? undefined,
+      name,
+      email,
+      avatarUrl,        // <-- saved here
       createdAt: Date.now(),
     });
     return await ctx.db.get(userId);
