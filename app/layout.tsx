@@ -6,7 +6,7 @@ import { Providers } from "./providers"; // client wrapper
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SplitMVP",
+  title: "Evenly.",
   description: "Fast, clean group expenses.",
 };
 

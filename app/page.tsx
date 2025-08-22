@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 export default function Home() {
   return (
     <main className="mx-auto max-w-2xl py-20 px-6 text-center">
-      <h1 className="text-4xl font-bold mb-4">SplitMVP</h1>
+      <h1 className="text-4xl font-bold mb-4">Evenly.</h1>
       <p className="text-muted-foreground mb-8">Fast, clean group expenses.</p>
 
       <SignedOut>
