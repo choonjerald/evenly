@@ -51,4 +51,13 @@ export default defineSchema({
     text: v.string(),
     createdAt: v.number(),
   }).index("by_author", ["author"]),
+
+  settlements: defineTable({
+    groupId: v.id("groups"),
+    fromUserId: v.id("users"), // payer (debtor)
+    toUserId: v.id("users"),   // recipient (creditor)
+    amountCents: v.number(),   // integer cents
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_group_createdAt", ["groupId", "createdAt"]),
 });

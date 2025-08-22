@@ -72,7 +72,10 @@ export const deleteExpense = mutation({
 export const balances = query({
   args: { groupId: v.id("groups") },
   handler: async (ctx, { groupId }) => {
+    // 1) Guard: user must be a member (no awaits in index callbacks)
     await requireMembership(ctx, groupId);
+
+    // 2) Expenses → net (integer-safe Largest Remainder rounding)
     const exps = await ctx.db
       .query("expenses")
       .withIndex("by_group_createdAt", (q: any) => q.eq("groupId", groupId))
@@ -82,16 +85,43 @@ export const balances = query({
     for (const e of exps) {
       const participants = e.participants as string[];
       const weights = e.weights ?? Object.fromEntries(participants.map((id) => [id, 1]));
-      const totalWeight = participants.reduce((sum, id) => sum + (weights[id] ?? 1), 0);
-      for (const u of participants) {
-        const share = Math.round((e.amountCents * (weights[u] ?? 1)) / totalWeight);
-        net[u] = (net[u] ?? 0) - share; // owes share
-      }
-      net[e.payerId] = (net[e.payerId] ?? 0) + e.amountCents; // gets credit for paying
+      const totalWeight = participants.reduce((s, u) => s + (weights[u] ?? 1), 0);
+
+      // quotas/floors/remainders
+      const rows = participants.map((u) => {
+        const quota = (e.amountCents * (weights[u] ?? 1)) / totalWeight;
+        const floor = Math.floor(quota);
+        const rem = quota - floor;
+        return { u, floor, rem };
+      });
+      const sumFloors = rows.reduce((s, r) => s + r.floor, 0);
+      let leftover = e.amountCents - sumFloors;
+      // deterministic tie-break by user id
+      rows.sort((a, b) => (b.rem !== a.rem ? b.rem - a.rem : a.u.localeCompare(b.u)));
+      for (let i = 0; i < leftover; i++) rows[i].floor += 1;
+
+      // apply to net
+      for (const r of rows) net[r.u] = (net[r.u] ?? 0) - r.floor; // each owes their share
+      net[e.payerId] = (net[e.payerId] ?? 0) + e.amountCents;     // payer credited
     }
+
+    // 3) Settlements → adjust net
+    //    fromUser pays toUser amountCents:
+    //    fromUser owes less (+amount), toUser is owed less (-amount)
+    const settlements = await ctx.db
+      .query("settlements")
+      .withIndex("by_group_createdAt", (q: any) => q.eq("groupId", groupId))
+      .collect();
+
+    for (const s of settlements) {
+      net[s.fromUserId] = (net[s.fromUserId] ?? 0) + s.amountCents;
+      net[s.toUserId] = (net[s.toUserId] ?? 0) - s.amountCents;
+    }
+
     return net; // { userId: cents }
   },
 });
+
 
 export const updateExpense = mutation({
   args: {
