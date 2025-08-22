@@ -92,3 +92,63 @@ export const balances = query({
     return net; // { userId: cents }
   },
 });
+
+export const updateExpense = mutation({
+  args: {
+    expenseId: v.id("expenses"),
+    description: v.optional(v.string()),
+    amountCents: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    payerId: v.optional(v.id("users")),
+    participants: v.optional(v.array(v.id("users"))),
+    weights: v.optional(v.record(v.string(), v.number())), // pass {} to clear (equal)
+  },
+  handler: async (ctx, args) => {
+    const { expenseId, ...patch } = args;
+    const e = await ctx.db.get(expenseId);
+    if (!e) throw new Error("Not found");
+    await requireMembership(ctx, e.groupId);
+
+    const update: any = {};
+
+    // Optional validations + assignments
+    if (patch.amountCents !== undefined) {
+      if (patch.amountCents <= 0) throw new Error("Amount must be positive");
+      update.amountCents = patch.amountCents;
+    }
+    if (patch.description !== undefined) update.description = patch.description;
+    if (patch.currency !== undefined) update.currency = patch.currency;
+    if (patch.payerId !== undefined) update.payerId = patch.payerId;
+
+    if (patch.participants !== undefined) {
+      if (patch.participants.length === 0) throw new Error("Participants required");
+      // ensure all are members
+      for (const u of patch.participants) {
+        const mem = await ctx.db
+          .query("memberships")
+          .withIndex("by_group_user", (q: any) => q.eq("groupId", e.groupId).eq("userId", u))
+          .unique();
+        if (!mem) throw new Error("All participants must be group members");
+      }
+      update.participants = patch.participants;
+      // if payer provided earlier/unchanged, ensure payer is in participants
+      const payerCheck = patch.payerId ?? e.payerId;
+      if (!update.participants.includes(payerCheck)) {
+        throw new Error("Payer must be a participant");
+      }
+    } else if (patch.payerId !== undefined) {
+      // participants unchanged; ensure payer remains a participant
+      if (!e.participants.includes(patch.payerId)) {
+        throw new Error("Payer must be a participant");
+      }
+    }
+
+    if (patch.weights !== undefined) {
+      // empty object means equal split → remove weights field
+      update.weights = Object.keys(patch.weights).length === 0 ? undefined : patch.weights;
+    }
+
+    await ctx.db.patch(expenseId, update);
+    return true;
+  },
+});
