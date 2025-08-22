@@ -12,9 +12,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        {/* Client-only providers live inside this wrapper */}
         <Providers>
           <div className="min-h-screen bg-background text-foreground">{children}</div>
         </Providers>
