@@ -161,17 +161,24 @@ export default function GroupPage() {
             <h3 className="text-xl font-semibold">Expenses</h3>
             <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
               <DialogTrigger asChild>
-                <Button><Plus className="mr-2 h-4 w-4" /> {editingExpense ? "Edit expense" : "Add expense"}</Button>
+                <Button className="hidden md:inline-flex">
+                  <Plus className="mr-2 h-4 w-4" />
+                  {editingExpense ? "Edit expense" : "Add expense"}
+                </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editingExpense ? "Edit expense" : "Add expense"}</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-3">
                   <Input placeholder="Description" value={desc} onChange={(e) => setDesc(e.target.value)} />
-                  <Input placeholder="Amount (e.g. 12.50)" value={amount} onChange={(e) => setAmount(e.target.value)} />
-
+                  <Input
+                    placeholder="Amount (e.g. 12.50)"
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
                   <Select value={payer ?? undefined} onValueChange={(v) => setPayer(v)}>
                     <SelectTrigger><SelectValue placeholder="Payer" /></SelectTrigger>
                     <SelectContent>
@@ -277,21 +284,9 @@ export default function GroupPage() {
           {expenses.length === 0 ? (
             <div className="text-sm text-muted-foreground">No expenses yet.</div>
           ) : (
-            <Table>
-              <TableCaption>Recent expenses</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="whitespace-nowrap">Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Payer</TableHead>
-                  <TableHead>Participants</TableHead>
-                  <TableHead className="whitespace-nowrap">Split</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Your share</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile: card list */}
+              <div className="md:hidden space-y-2">
                 {expenses.map((e: any) => {
                   const payerName = userMap[e.payerId]?.name ?? "Unknown";
                   const pList: string[] = e.participants ?? [];
@@ -300,72 +295,164 @@ export default function GroupPage() {
                   const yourShare = me && pList.includes(me._id) ? shares[me._id] ?? 0 : null;
 
                   return (
-                    <TableRow key={e._id}>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {new Date(e.createdAt).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="font-medium">{e.description}</TableCell>
-                      <TableCell>{payerName}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {pList.map((uid) => {
-                            const name = userMap[uid]?.name ?? "User";
-                            const w = e.weights ? (e.weights as any)[uid] ?? 1 : 1;
-                            return (
-                              <Badge key={uid} variant="secondary">
-                                {name}{e.weights ? ` · w${w}` : ""}
-                              </Badge>
-                            );
-                          })}
+                    <Card key={e._id} className="p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{e.description}</div>
+                          <div className="mt-1 text-xs text-muted-foreground flex items-center gap-2">
+                            <span>{new Date(e.createdAt).toLocaleDateString()}</span>
+                            <span>•</span>
+                            <span>by {payerName}</span>
+                            <span>•</span>
+                            <span className="inline-flex items-center rounded-full border px-1.5 py-0.5">
+                              {splitType}
+                            </span>
+                          </div>
+
+                          {/* Participants avatars */}
+                          <div className="mt-2 flex items-center gap-1 -space-x-2">
+                            {pList.slice(0, 4).map((uid) => (
+                              <Avatar key={uid} className="h-6 w-6 ring-2 ring-background">
+                                <AvatarImage src={userMap[uid]?.avatarUrl} alt={userMap[uid]?.name} />
+                                <AvatarFallback>
+                                  {(userMap[uid]?.name?.[0] ?? "U").toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                            ))}
+                            {pList.length > 4 && (
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                +{pList.length - 4} more
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={e.weights ? "default" : "outline"}>{splitType}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(e.amountCents, e.currency)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {yourShare == null ? "—" : formatCurrency(yourShare, e.currency)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" aria-label="Open row actions">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setDetailsExpense(e);
-                                setDetailsOpen(true);
-                              }}
-                            >
-                              <Eye className="mr-2 h-4 w-4" /> View details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEdit(e)}>
-                              <Pencil className="mr-2 h-4 w-4" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600"
-                              onClick={() => {
-                                setToDeleteId(e._id);
-                                setDeleteOpen(true);
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
+
+                        <div className="text-right shrink-0">
+                          <div className="font-semibold">
+                            {formatCurrency(e.amountCents, e.currency)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {yourShare == null ? "" : `You: ${formatCurrency(yourShare, e.currency)}`}
+                          </div>
+
+                          {/* Row actions */}
+                          <div className="mt-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" aria-label="Open actions">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => { setDetailsExpense(e); setDetailsOpen(true); }}>
+                                  View details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEdit(e)}>
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={() => { setToDeleteId(e._id); setDeleteOpen(true); }}
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
                   );
                 })}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop: keep your table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableCaption>Recent expenses</TableCaption>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="whitespace-nowrap">Date</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Payer</TableHead>
+                      <TableHead>Participants</TableHead>
+                      <TableHead className="whitespace-nowrap">Split</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Your share</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {expenses.map((e: any) => {
+                      const payerName = userMap[e.payerId]?.name ?? "Unknown";
+                      const pList: string[] = e.participants ?? [];
+                      const splitType = e.weights ? "Weighted" : "Equal";
+                      const shares = computeWeightedShares(pList, e.weights as any, e.amountCents);
+                      const yourShare = me && pList.includes(me._id) ? shares[me._id] ?? 0 : null;
+
+                      return (
+                        <TableRow key={e._id}>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(e.createdAt).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="font-medium">{e.description}</TableCell>
+                          <TableCell>{payerName}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {pList.map((uid) => {
+                                const name = userMap[uid]?.name ?? "User";
+                                const w = e.weights ? (e.weights as any)[uid] ?? 1 : 1;
+                                return (
+                                  <Badge key={uid} variant="secondary">
+                                    {name}{e.weights ? ` · w${w}` : ""}
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={e.weights ? "default" : "outline"}>{splitType}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCurrency(e.amountCents, e.currency)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {yourShare == null ? "—" : formatCurrency(yourShare, e.currency)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" aria-label="Open row actions">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => { setDetailsExpense(e); setDetailsOpen(true); }}>
+                                  View details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEdit(e)}>
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={() => { setToDeleteId(e._id); setDeleteOpen(true); }}
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
+
 
           {/* DETAILS SHEET */}
           <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
@@ -545,6 +632,16 @@ export default function GroupPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          {/* Mobile “Add” FAB */}
+          <Button
+            className="md:hidden fixed bottom-5 right-5 h-14 w-14 rounded-full shadow-lg"
+            size="icon"
+            onClick={() => setOpen(true)}
+            aria-label="Add expense"
+          >
+            <Plus className="h-6 w-6" />
+          </Button>
         </TabsContent>
 
         {/* Balances */}
