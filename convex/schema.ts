@@ -35,6 +35,7 @@ export default defineSchema({
     description: v.string(),
     participants: v.array(v.id("users")),
     weights: v.optional(v.record(v.string(), v.number())), // { userId: weight }
+    receiptStorageId: v.optional(v.id("_storage")),
     createdAt: v.number(),
   }).index("by_group_createdAt", ["groupId", "createdAt"]),
 

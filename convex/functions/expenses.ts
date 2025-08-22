@@ -1,6 +1,11 @@
 import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { requireUser } from "../auth";
+import { api } from "../_generated/api";
+
+export const generateUploadUrl = mutation(async (ctx) => {
+  return await ctx.storage.generateUploadUrl();
+});
 
 async function requireMembership(ctx: any, groupId: string) {
   const me = await requireUser(ctx);
@@ -16,11 +21,20 @@ export const listExpenses = query({
   args: { groupId: v.id("groups"), limit: v.optional(v.number()) },
   handler: async (ctx, { groupId, limit = 100 }) => {
     await requireMembership(ctx, groupId);
-    return await ctx.db
+    const expenses = await ctx.db
       .query("expenses")
       .withIndex("by_group_createdAt", (q: any) => q.eq("groupId", groupId))
       .order("desc")
       .take(limit);
+
+    return Promise.all(
+      expenses.map(async (e) => ({
+        ...e,
+        receiptUrl: e.receiptStorageId
+          ? await ctx.storage.getUrl(e.receiptStorageId)
+          : null,
+      }))
+    );
   },
 });
 
@@ -33,6 +47,7 @@ export const addExpense = mutation({
     description: v.string(),
     participants: v.array(v.id("users")),
     weights: v.optional(v.record(v.string(), v.number())),
+    receiptStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     await requireMembership(ctx, args.groupId);
@@ -132,6 +147,7 @@ export const updateExpense = mutation({
     payerId: v.optional(v.id("users")),
     participants: v.optional(v.array(v.id("users"))),
     weights: v.optional(v.record(v.string(), v.number())), // pass {} to clear (equal)
+    receiptStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const { expenseId, ...patch } = args;
@@ -149,6 +165,8 @@ export const updateExpense = mutation({
     if (patch.description !== undefined) update.description = patch.description;
     if (patch.currency !== undefined) update.currency = patch.currency;
     if (patch.payerId !== undefined) update.payerId = patch.payerId;
+    if (patch.receiptStorageId !== undefined)
+      update.receiptStorageId = patch.receiptStorageId;
 
     if (patch.participants !== undefined) {
       if (patch.participants.length === 0) throw new Error("Participants required");
