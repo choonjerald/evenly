@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Providers } from "./providers"; // client wrapper
+import { Navbar } from "@/components/navbar";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -15,7 +16,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
-          <div className="min-h-screen bg-background text-foreground">{children}</div>
+          <div className="flex min-h-screen flex-col bg-background text-foreground">
+            <Navbar />
+            <div className="flex-1">{children}</div>
+          </div>
         </Providers>
       </body>
     </html>
