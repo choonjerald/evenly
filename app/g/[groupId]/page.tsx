@@ -84,6 +84,7 @@ export default function GroupPage() {
   const updateExpense = useMutation(api.functions.expenses.updateExpense);
   const deleteExpenseMut = useMutation(api.functions.expenses.deleteExpense);
   const createInvite = useMutation(api.functions.groups.createInvite);
+  const generateUploadUrl = useMutation(api.functions.expenses.generateUploadUrl);
 
   // Create/Edit dialog state
   const [open, setOpen] = useState(false);
@@ -94,6 +95,7 @@ export default function GroupPage() {
   const [participants, setParticipants] = useState<string[]>([]);
   const [mode, setMode] = useState<"equal" | "weights">("equal");
   const [weights, setWeights] = useState<Record<string, number>>({});
+  const [receipt, setReceipt] = useState<File | null>(null);
 
   // Details sheet
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -127,6 +129,7 @@ export default function GroupPage() {
     setParticipants([]);
     setWeights({});
     setMode("equal");
+    setReceipt(null);
   }
 
   function openEdit(e: any) {
@@ -142,6 +145,7 @@ export default function GroupPage() {
       setMode("equal");
       setWeights({});
     }
+    setReceipt(null);
     setOpen(true);
   }
 
@@ -236,12 +240,39 @@ export default function GroupPage() {
                       ))}
                     </div>
                   )}
+
+                  <div>
+                    <div className="mb-2 text-sm font-medium">Receipt (optional)</div>
+                    <Input type="file" onChange={(e) => setReceipt(e.target.files?.[0] ?? null)} />
+                    {receipt && (
+                      <div className="mt-2">
+                        <img
+                          src={URL.createObjectURL(receipt)}
+                          alt="Receipt preview"
+                          className="w-full h-auto rounded-md"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <DialogFooter>
                   <Button
                     onClick={async () => {
                       if (!payer || participants.length === 0) return;
+
+                      let receiptStorageId: string | undefined = undefined;
+                      if (receipt) {
+                        const postUrl = await generateUploadUrl();
+                        const result = await fetch(postUrl, {
+                          method: "POST",
+                          headers: { "Content-Type": receipt.type },
+                          body: receipt,
+                        });
+                        const { storageId } = await result.json();
+                        receiptStorageId = storageId;
+                      }
+
                       const amountCents = Math.round(parseFloat(amount) * 100);
                       const w =
                         mode === "weights"
@@ -257,6 +288,7 @@ export default function GroupPage() {
                           payerId: payer as any,
                           participants: participants as any,
                           weights: w, // empty {} means equal
+                          receiptStorageId,
                         });
                       } else {
                         await addExpense({
@@ -267,6 +299,7 @@ export default function GroupPage() {
                           description: desc,
                           participants: participants as any,
                           weights: mode === "weights" ? w : undefined,
+                          receiptStorageId,
                         });
                       }
 
@@ -594,6 +627,23 @@ export default function GroupPage() {
                         );
                       })()}
                     </section>
+
+                    {detailsExpense.receiptUrl && (
+                      <>
+                        <Separator />
+                        <section>
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-2">
+                            <Receipt className="h-4 w-4" />
+                            Receipt
+                          </div>
+                          <img
+                            src={detailsExpense.receiptUrl}
+                            alt="Receipt image"
+                            className="w-full h-auto rounded-md border"
+                          />
+                        </section>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (
