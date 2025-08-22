@@ -124,24 +124,33 @@ export const joinByCode = mutation({
   args: { code: v.string() },
   handler: async (ctx, { code }) => {
     const me = await requireUser(ctx);
+
     const invite = await ctx.db
       .query("invites")
       .withIndex("by_code", (q: any) => q.eq("code", code))
       .unique();
+
     if (!invite) throw new Error("Invalid code");
     if (invite.expiresAt < Date.now()) throw new Error("Invite expired");
 
     const existing = await ctx.db
       .query("memberships")
-      .withIndex("by_group_user", (q: any) => q.eq("groupId", invite.groupId).eq("userId", me._id))
+      .withIndex("by_group_user", (q: any) =>
+        q.eq("groupId", invite.groupId).eq("userId", me._id)
+      )
       .unique();
-    if (existing) return existing._id;
 
-    return await ctx.db.insert("memberships", {
+    if (existing) {
+      return { membershipId: existing._id, groupId: invite.groupId };
+    }
+
+    const membershipId = await ctx.db.insert("memberships", {
       groupId: invite.groupId,
       userId: me._id,
       role: "member",
       createdAt: Date.now(),
     });
+
+    return { membershipId, groupId: invite.groupId };
   },
 });
