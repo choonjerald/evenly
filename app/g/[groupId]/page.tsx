@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -261,7 +262,7 @@ export default function GroupPage() {
                     onClick={async () => {
                       if (!payer || participants.length === 0) return;
 
-                      let receiptStorageId: string | undefined = undefined;
+                      let receiptStorageId: Id<"_storage"> | undefined = undefined;
                       if (receipt) {
                         const postUrl = await generateUploadUrl();
                         const result = await fetch(postUrl, {
@@ -270,7 +271,7 @@ export default function GroupPage() {
                           body: receipt,
                         });
                         const { storageId } = await result.json();
-                        receiptStorageId = storageId;
+                        receiptStorageId = storageId as Id<"_storage">;
                       }
 
                       const amountCents = Math.round(parseFloat(amount) * 100);
