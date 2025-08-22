@@ -45,4 +45,10 @@ export default defineSchema({
     createdBy: v.id("users"),
     createdAt: v.number(),
   }).index("by_code", ["code"]),
+
+  messages: defineTable({
+    author: v.string(),      // email string
+    text: v.string(),
+    createdAt: v.number(),
+  }).index("by_author", ["author"]),
 });

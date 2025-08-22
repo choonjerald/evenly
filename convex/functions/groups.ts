@@ -105,14 +105,18 @@ export const createInvite = mutation({
     const { me } = await requireMembership(ctx, groupId);
     const code = randomCode(8);
     const expiresAt = Date.now() + ttlHours * 3600 * 1000;
-    const id = await ctx.db.insert("invites", {
+
+    const inviteId = await ctx.db.insert("invites", {
       groupId,
       code,
       expiresAt,
       createdBy: me._id,
       createdAt: Date.now(),
     });
-    return await ctx.db.get(id);
+
+    const invite = await ctx.db.get(inviteId);
+    if (!invite) throw new Error("Invite not found after insert");
+    return invite; // non-null here
   },
 });
 
