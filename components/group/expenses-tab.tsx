@@ -28,6 +28,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -52,9 +58,6 @@ import {
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
 } from "@/components/ui/sheet";
 
 import { formatCurrency } from "@/lib/formatCurrency";
@@ -88,6 +91,11 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
   const [desc, setDesc] = useState("");
   const [payer, setPayer] = useState<string | null>(null);
+  const [amount, setAmount] = useState("");
+  const [participants, setParticipants] = useState<string[]>([]);
+  const [mode, setMode] = useState<"equal" | "weights">("equal");
+  const [weights, setWeights] = useState<Record<string, number>>({});
+  const [tab, setTab] = useState<"basic" | "receipt">("basic");
   const [items, setItems] = useState<
     { description: string; amount: string; assignedTo: string[] }[]
   >([{ description: "", amount: "", assignedTo: [] }]);
@@ -133,6 +141,11 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
     setEditingExpense(null);
     setDesc("");
     setPayer(null);
+     setAmount("");
+     setParticipants([]);
+     setMode("equal");
+     setWeights({});
+     setTab("basic");
     setItems([{ description: "", amount: "", assignedTo: [] }]);
     setReceipt(null);
     setReceiptStorageId(null);
@@ -142,15 +155,29 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
     setEditingExpense(e);
     setDesc(e.description);
     setPayer(e.payerId);
-    setItems(
-      (e.items ?? []).map((it: any) => ({
-        description: it.description,
-        amount: (it.priceCents / 100).toFixed(2),
-        assignedTo: it.assignedTo ?? [],
-      }))
-    );
-    setReceipt(null);
-    setReceiptStorageId(e.receiptStorageId ?? null);
+    if (e.items && e.items.length > 0) {
+      setTab("receipt");
+      setItems(
+        (e.items ?? []).map((it: any) => ({
+          description: it.description,
+          amount: (it.priceCents / 100).toFixed(2),
+          assignedTo: it.assignedTo ?? [],
+        }))
+      );
+      setReceipt(null);
+      setReceiptStorageId(e.receiptStorageId ?? null);
+    } else {
+      setTab("basic");
+      setAmount((e.amountCents / 100).toFixed(2));
+      setParticipants(e.participants ?? []);
+      if (e.weights && Object.keys(e.weights).length > 0) {
+        setMode("weights");
+        setWeights(e.weights);
+      } else {
+        setMode("equal");
+        setWeights({});
+      }
+    }
     setOpen(true);
   }
 
@@ -197,114 +224,33 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                   ))}
                 </SelectContent>
               </Select>
-
-              <div>
-                <div className="mb-2 text-sm font-medium">Receipt (optional)</div>
-                <Input
-                  type="file"
-                  disabled={scanning}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0] ?? null;
-                    setReceipt(file);
-                    if (!file) {
-                      setReceiptStorageId(null);
-                      return;
-                    }
-                    setScanning(true);
-                    const postUrl = await generateUploadUrl();
-                    const result = await fetch(postUrl, {
-                      method: "POST",
-                      headers: { "Content-Type": file.type },
-                      body: file,
-                    });
-                    const { storageId } = await result.json();
-                    setReceiptStorageId(storageId as Id<"_storage">);
-                    try {
-                      const res = await scanReceipt({
-                        receiptStorageId: storageId as Id<"_storage">,
-                      });
-                      if (res.items.length > 0) {
-                        setItems(
-                          res.items.map((it: any) => ({
-                            description: it.description,
-                            amount: (it.priceCents / 100).toFixed(2),
-                            assignedTo: [],
-                          }))
-                        );
-                      } else {
-                        toast.error("No items detected; please enter items manually");
-                        setItems([{ description: "", amount: "", assignedTo: [] }]);
-                      }
-                    } catch (err: any) {
-                      const message =
-                        err instanceof Error && err.message === "OCR_API_KEY not configured"
-                          ? "OCR is not configured; please enter items manually"
-                          : "OCR failed; please enter items manually";
-                      toast.error(message);
-                      setItems([{ description: "", amount: "", assignedTo: [] }]);
-                    } finally {
-                      setScanning(false);
-                    }
-                  }}
-                />
-                {receipt && (
-                  <div className="mt-2">
-                    <img
-                      src={URL.createObjectURL(receipt)}
-                      alt="Receipt preview"
-                      className="w-full h-auto rounded-md"
-                    />
-                  </div>
-                )}
-                {scanning && (
-                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Scanning receipt...</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                {items.map((item, idx) => (
-                  <div key={idx} className="border p-2 rounded-md space-y-2">
-                    <Input
-                      placeholder="Item description"
-                      value={item.description}
-                      onChange={(e) => {
-                        const newItems = [...items];
-                        newItems[idx] = { ...newItems[idx], description: e.target.value };
-                        setItems(newItems);
-                      }}
-                    />
-                    <Input
-                      placeholder="Amount"
-                      inputMode="decimal"
-                      value={item.amount}
-                      onChange={(e) => {
-                        const newItems = [...items];
-                        newItems[idx] = { ...newItems[idx], amount: e.target.value };
-                        setItems(newItems);
-                      }}
-                    />
+              <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="basic">Basic</TabsTrigger>
+                  <TabsTrigger value="receipt">Receipt</TabsTrigger>
+                </TabsList>
+                <TabsContent value="basic" className="space-y-3 pt-3">
+                  <Input
+                    placeholder="Amount (e.g. 12.50)"
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                  <div>
+                    <div className="mb-2 text-sm font-medium">Participants</div>
                     <div className="flex flex-wrap gap-2">
                       {memberOptions.map((m) => {
-                        const active = item.assignedTo.includes(m.id);
+                        const active = participants.includes(m.id);
                         return (
                           <Button
                             key={m.id}
                             type="button"
                             variant={active ? "default" : "outline"}
-                            onClick={() => {
-                              const newItems = [...items];
-                              const assigned = new Set(newItems[idx].assignedTo);
-                              if (assigned.has(m.id)) assigned.delete(m.id);
-                              else assigned.add(m.id);
-                              newItems[idx] = {
-                                ...newItems[idx],
-                                assignedTo: Array.from(assigned),
-                              };
-                              setItems(newItems);
-                            }}
+                            onClick={() =>
+                              setParticipants((prev) =>
+                                active ? prev.filter((x) => x !== m.id) : [...prev, m.id]
+                              )
+                            }
                           >
                             {m.name}
                           </Button>
@@ -312,74 +258,255 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                       })}
                     </div>
                   </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    setItems([...items, { description: "", amount: "", assignedTo: [] }])
-                  }
-                >
-                  Add item
-                </Button>
-              </div>
-
-              <div className="mt-4 space-y-1">
-                <div className="font-medium">Per-member totals</div>
-                {Object.entries(perMemberTotals).map(([uid, cents]) => (
-                  <div key={uid} className="flex justify-between text-sm">
-                    <span>{memberOptions.find((m) => m.id === uid)?.name ?? uid}</span>
-                    <span>{formatCurrency(cents, "SGD")}</span>
+                  <Select value={mode} onValueChange={(v: any) => setMode(v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Split mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="equal">Equal split</SelectItem>
+                      <SelectItem value="weights">Weighted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {mode === "weights" && (
+                    <div className="space-y-2">
+                      {participants.map((id) => (
+                        <div key={id} className="flex items-center gap-2">
+                          <div className="w-32 text-sm">
+                            {memberOptions.find((m) => m.id === id)?.name}
+                          </div>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="1"
+                            value={weights[id] ?? 1}
+                            onChange={(e) =>
+                              setWeights({ ...weights, [id]: Number(e.target.value) })
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent value="receipt" className="space-y-3 pt-3">
+                  <div>
+                    <div className="mb-2 text-sm font-medium">Receipt</div>
+                    <Input
+                      type="file"
+                      disabled={scanning}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setReceipt(file);
+                        if (!file) {
+                          setReceiptStorageId(null);
+                          return;
+                        }
+                        setScanning(true);
+                        const postUrl = await generateUploadUrl();
+                        const result = await fetch(postUrl, {
+                          method: "POST",
+                          headers: { "Content-Type": file.type },
+                          body: file,
+                        });
+                        const { storageId } = await result.json();
+                        setReceiptStorageId(storageId as Id<"_storage">);
+                        try {
+                          const res = await scanReceipt({
+                            receiptStorageId: storageId as Id<"_storage">,
+                          });
+                          console.log("OCR scan result", res);
+                          if (res.items.length > 0) {
+                            setItems(
+                              res.items.map((it: any) => ({
+                                description: it.description,
+                                amount: (it.priceCents / 100).toFixed(2),
+                                assignedTo: [],
+                              }))
+                            );
+                          } else {
+                            toast.error("No items detected; please enter items manually");
+                            setItems([{ description: "", amount: "", assignedTo: [] }]);
+                          }
+                        } catch (err: any) {
+                          const message =
+                            err instanceof Error && err.message === "OCR_API_KEY not configured"
+                              ? "OCR is not configured; please enter items manually"
+                              : "OCR failed; please enter items manually";
+                          toast.error(message);
+                          setItems([{ description: "", amount: "", assignedTo: [] }]);
+                        } finally {
+                          setScanning(false);
+                        }
+                      }}
+                    />
+                    {receipt && (
+                      <div className="mt-2">
+                        <img
+                          src={URL.createObjectURL(receipt)}
+                          alt="Receipt preview"
+                          className="w-full h-auto rounded-md"
+                        />
+                      </div>
+                    )}
+                    {scanning && (
+                      <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Scanning receipt...</span>
+                      </div>
+                    )}
                   </div>
-                ))}
-                <div className="flex justify-between font-semibold">
-                  <span>Total</span>
-                  <span>{formatCurrency(totalAmountCents, "SGD")}</span>
-                </div>
-              </div>
+                  <div className="space-y-2">
+                    {items.map((item, idx) => (
+                      <div key={idx} className="border p-2 rounded-md space-y-2">
+                        <Input
+                          placeholder="Item description"
+                          value={item.description}
+                          onChange={(e) => {
+                            const newItems = [...items];
+                            newItems[idx] = { ...newItems[idx], description: e.target.value };
+                            setItems(newItems);
+                          }}
+                        />
+                        <Input
+                          placeholder="Amount"
+                          inputMode="decimal"
+                          value={item.amount}
+                          onChange={(e) => {
+                            const newItems = [...items];
+                            newItems[idx] = { ...newItems[idx], amount: e.target.value };
+                            setItems(newItems);
+                          }}
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          {memberOptions.map((m) => {
+                            const active = item.assignedTo.includes(m.id);
+                            return (
+                              <Button
+                                key={m.id}
+                                type="button"
+                                variant={active ? "default" : "outline"}
+                                onClick={() => {
+                                  const newItems = [...items];
+                                  const assigned = new Set(newItems[idx].assignedTo);
+                                  if (assigned.has(m.id)) assigned.delete(m.id);
+                                  else assigned.add(m.id);
+                                  newItems[idx] = {
+                                    ...newItems[idx],
+                                    assignedTo: Array.from(assigned),
+                                  };
+                                  setItems(newItems);
+                                }}
+                              >
+                                {m.name}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        setItems([...items, { description: "", amount: "", assignedTo: [] }])
+                      }
+                    >
+                      Add item
+                    </Button>
+                  </div>
+                  <div className="mt-4 space-y-1">
+                    <div className="font-medium">Per-member totals</div>
+                    {Object.entries(perMemberTotals).map(([uid, cents]) => (
+                      <div key={uid} className="flex justify-between text-sm">
+                        <span>{memberOptions.find((m) => m.id === uid)?.name ?? uid}</span>
+                        <span>{formatCurrency(cents, "SGD")}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-semibold">
+                      <span>Total</span>
+                      <span>{formatCurrency(totalAmountCents, "SGD")}</span>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
 
             <DialogFooter>
               <Button
                 onClick={async () => {
-                  if (!payer || items.length === 0) return;
+                  if (!payer) return;
 
-                  let storageId = receiptStorageId;
-                  if (receipt && !storageId) {
-                    const postUrl = await generateUploadUrl();
-                    const result = await fetch(postUrl, {
-                      method: "POST",
-                      headers: { "Content-Type": receipt.type },
-                      body: receipt,
-                    });
-                    const { storageId: sid } = await result.json();
-                    storageId = sid as Id<"_storage">;
-                  }
+                  if (tab === "receipt") {
+                    if (items.length === 0) return;
 
-                  const payloadItems = items.map((it) => ({
-                    description: it.description,
-                    priceCents: Math.round(parseFloat(it.amount || "0") * 100),
-                    assignedTo: it.assignedTo as any,
-                  }));
+                    let storageId = receiptStorageId;
+                    if (receipt && !storageId) {
+                      const postUrl = await generateUploadUrl();
+                      const result = await fetch(postUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": receipt.type },
+                        body: receipt,
+                      });
+                      const { storageId: sid } = await result.json();
+                      storageId = sid as Id<"_storage">;
+                    }
 
-                  if (editingExpense) {
-                    await updateExpense({
-                      expenseId: editingExpense._id,
-                      description: desc,
-                      payerId: payer as any,
-                      currency: "SGD",
-                      items: payloadItems,
-                      receiptStorageId: storageId ?? undefined,
-                    });
+                    const payloadItems = items.map((it) => ({
+                      description: it.description,
+                      priceCents: Math.round(parseFloat(it.amount || "0") * 100),
+                      assignedTo: it.assignedTo as any,
+                    }));
+
+                    if (editingExpense) {
+                      await updateExpense({
+                        expenseId: editingExpense._id,
+                        description: desc,
+                        payerId: payer as any,
+                        currency: "SGD",
+                        items: payloadItems,
+                        receiptStorageId: storageId ?? undefined,
+                      });
+                    } else {
+                      await addExpense({
+                        groupId: groupId as any,
+                        payerId: payer as any,
+                        currency: "SGD",
+                        description: desc,
+                        items: payloadItems,
+                        receiptStorageId: storageId ?? undefined,
+                      });
+                    }
                   } else {
-                    await addExpense({
-                      groupId: groupId as any,
-                      payerId: payer as any,
-                      currency: "SGD",
-                      description: desc,
-                      items: payloadItems,
-                      receiptStorageId: storageId ?? undefined,
-                    });
+                    if (!amount || participants.length === 0) return;
+                    const amountCents = Math.round(parseFloat(amount) * 100);
+                    const w =
+                      mode === "weights"
+                        ? Object.fromEntries(
+                            participants.map((id) => [id, weights[id] || 1])
+                          )
+                        : undefined;
+
+                    if (editingExpense) {
+                      await updateExpense({
+                        expenseId: editingExpense._id,
+                        description: desc,
+                        payerId: payer as any,
+                        amountCents,
+                        currency: "SGD",
+                        participants: participants as any,
+                        weights: w as any,
+                      });
+                    } else {
+                      await addExpense({
+                        groupId: groupId as any,
+                        payerId: payer as any,
+                        amountCents,
+                        currency: "SGD",
+                        description: desc,
+                        participants: participants as any,
+                        weights: w as any,
+                      });
+                    }
                   }
 
                   setOpen(false);

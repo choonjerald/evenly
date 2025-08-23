@@ -65,6 +65,8 @@ export const scanReceipt = action({
         }
       }
 
+      console.log("OCR lines", lines);
+      console.log("OCR items", items);
       return { items };
     } catch (err) {
       console.error("OCR failed", err);
