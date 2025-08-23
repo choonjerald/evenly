@@ -82,6 +82,10 @@ function initials(name?: string) {
   return (a + b || a).toUpperCase();
 }
 
+function formatWeight(w: number) {
+  return Number.isInteger(w) ? w.toString() : w.toFixed(2).replace(/\.?0+$/, "");
+}
+
 export function ExpensesTab({ groupId }: { groupId: string }) {
   const expenses =
     useQuery(api.functions.expenses.listExpenses, { groupId: groupId as any }) ?? [];
@@ -732,7 +736,7 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                             return (
                               <Badge key={uid} variant="secondary">
                                 {name}
-                                {e.weights ? ` · w${w}` : ""}
+                                {e.weights ? ` · w${formatWeight(w)}` : ""}
                               </Badge>
                             );
                           })}
@@ -891,7 +895,7 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                             <div className="text-xs text-muted-foreground flex items-center gap-2">
                               {detailsExpense.weights ? (
                                 <>
-                                  <span>Weight {w}</span>
+                                  <span>Weight {formatWeight(w)}</span>
                                   <span>•</span>
                                   <span>{pct.toFixed(1)}%</span>
                                 </>
