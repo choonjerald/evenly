@@ -109,9 +109,7 @@ export const scanReceipt = action({
       const form = new FormData();
       form.append("file", blob, `receipt.${ext}`);
       form.append("filetype", ext);
-      form.append("isReceipt", "true");
-
-      const res = await fetch("https://api.ocr.space/parse/image", {
+      const res = await fetch("https://api.ocr.space/parse/receipt", {
         method: "POST",
         headers: {
           apikey: key,
