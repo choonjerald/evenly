@@ -593,9 +593,13 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                       const w = detailsExpense.weights
                         ? (detailsExpense.weights as any)[uid] ?? 1
                         : 1;
-                      const totalWeight = (
-                        Object.values(detailsExpense.weights as any) as number[]
-                      ).reduce((a, b) => a + b, 0);
+                      const totalWeight = detailsExpense.weights
+                        ? (
+                            Object.values(
+                              detailsExpense.weights as Record<string, number>
+                            ) as number[]
+                          ).reduce((a, b) => a + b, 0)
+                        : detailsExpense.participants?.length || 1;
                       const pct = detailsExpense.weights
                         ? (w / totalWeight) * 100
                         : 100 / (detailsExpense.participants?.length || 1);
