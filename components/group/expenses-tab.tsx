@@ -17,6 +17,7 @@ import {
   Plus,
   Loader2,
   Trash,
+  List,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -381,10 +382,14 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                       For best results, crop the receipt image so only item descriptions
                       and prices are visible.
                     </p>
-                    {receipt && (
+                    {(receipt || editingExpense?.receiptUrl) && (
                       <div className="mt-2">
                         <img
-                          src={URL.createObjectURL(receipt)}
+                          src={
+                            receipt
+                              ? URL.createObjectURL(receipt)
+                              : (editingExpense?.receiptUrl as string)
+                          }
                           alt="Receipt preview"
                           className="w-full h-auto rounded-md"
                         />
@@ -917,6 +922,45 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                 </section>
 
                 <Separator />
+
+                {/* Items */}
+                {detailsExpense.items && detailsExpense.items.length > 0 && (
+                  <section>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-2">
+                      <List className="h-4 w-4" />
+                      Items
+                    </div>
+                    <div className="space-y-2">
+                      {detailsExpense.items.map(
+                        (
+                          it: {
+                            description: string;
+                            priceCents: number;
+                            assignedTo: string[];
+                          },
+                          idx: number,
+                        ) => (
+                          <div key={idx} className="flex justify-between gap-4">
+                          <div>
+                            <div className="font-medium">{it.description}</div>
+                            {it.assignedTo && it.assignedTo.length > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                {it.assignedTo
+                                  .map((u: string) => userMap[u]?.name ?? "User")
+                                  .join(", ")}
+                              </div>
+                            )}
+                          </div>
+                          <div className="font-medium">
+                            {formatCurrency(it.priceCents, detailsExpense.currency)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {detailsExpense.items && detailsExpense.items.length > 0 && <Separator />}
 
                 {/* Receipt */}
                 {detailsExpense.receiptStorageId && (
