@@ -2,6 +2,7 @@ import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { requireUser } from "../auth";
 import { api } from "../_generated/api";
+import { computeSharesFromItems } from "../../lib/settlements";
 
 export const generateUploadUrl = mutation(async (ctx) => {
   return await ctx.storage.generateUploadUrl();
@@ -42,23 +43,28 @@ export const addExpense = mutation({
   args: {
     groupId: v.id("groups"),
     payerId: v.id("users"),
-    amountCents: v.number(),
     currency: v.string(),
     description: v.string(),
-    participants: v.array(v.id("users")),
-    weights: v.optional(v.record(v.string(), v.number())),
+    items: v.array(
+      v.object({
+        description: v.string(),
+        priceCents: v.number(),
+        assignedTo: v.array(v.id("users")),
+      })
+    ),
     receiptStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     await requireMembership(ctx, args.groupId);
 
-    // Basic validations
-    if (args.amountCents <= 0) throw new Error("Amount must be positive");
-    if (!args.participants.includes(args.payerId)) {
+    if (args.items.length === 0) throw new Error("Items required");
+    const { amountCents, weights } = computeSharesFromItems(args.items as any);
+    const participants = Object.keys(weights);
+    if (!participants.includes(args.payerId)) {
       throw new Error("Payer must be a participant");
     }
-    // Optional: ensure all participants are members
-    for (const u of args.participants) {
+
+    for (const u of participants) {
       const mem = await ctx.db
         .query("memberships")
         .withIndex("by_group_user", (q: any) => q.eq("groupId", args.groupId).eq("userId", u))
@@ -67,7 +73,15 @@ export const addExpense = mutation({
     }
 
     return await ctx.db.insert("expenses", {
-      ...args,
+      groupId: args.groupId,
+      payerId: args.payerId,
+      currency: args.currency,
+      description: args.description,
+      amountCents,
+      participants,
+      weights,
+      items: args.items,
+      receiptStorageId: args.receiptStorageId,
       createdAt: Date.now(),
     });
   },
@@ -142,11 +156,17 @@ export const updateExpense = mutation({
   args: {
     expenseId: v.id("expenses"),
     description: v.optional(v.string()),
-    amountCents: v.optional(v.number()),
     currency: v.optional(v.string()),
     payerId: v.optional(v.id("users")),
-    participants: v.optional(v.array(v.id("users"))),
-    weights: v.optional(v.record(v.string(), v.number())), // pass {} to clear (equal)
+    items: v.optional(
+      v.array(
+        v.object({
+          description: v.string(),
+          priceCents: v.number(),
+          assignedTo: v.array(v.id("users")),
+        })
+      )
+    ),
     receiptStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
@@ -158,42 +178,40 @@ export const updateExpense = mutation({
     const update: any = {};
 
     // Optional validations + assignments
-    if (patch.amountCents !== undefined) {
-      if (patch.amountCents <= 0) throw new Error("Amount must be positive");
-      update.amountCents = patch.amountCents;
-    }
     if (patch.description !== undefined) update.description = patch.description;
     if (patch.currency !== undefined) update.currency = patch.currency;
     if (patch.payerId !== undefined) update.payerId = patch.payerId;
     if (patch.receiptStorageId !== undefined)
       update.receiptStorageId = patch.receiptStorageId;
 
-    if (patch.participants !== undefined) {
-      if (patch.participants.length === 0) throw new Error("Participants required");
-      // ensure all are members
-      for (const u of patch.participants) {
+    if (patch.items !== undefined) {
+      if (patch.items.length === 0) throw new Error("Items required");
+
+      const { amountCents, weights } = computeSharesFromItems(patch.items as any);
+
+      const participants = Object.keys(weights);
+      const payerCheck = patch.payerId ?? e.payerId;
+      if (!participants.includes(payerCheck)) {
+        throw new Error("Payer must be a participant");
+      }
+
+      for (const u of participants) {
         const mem = await ctx.db
           .query("memberships")
           .withIndex("by_group_user", (q: any) => q.eq("groupId", e.groupId).eq("userId", u))
           .unique();
         if (!mem) throw new Error("All participants must be group members");
       }
-      update.participants = patch.participants;
-      // if payer provided earlier/unchanged, ensure payer is in participants
-      const payerCheck = patch.payerId ?? e.payerId;
-      if (!update.participants.includes(payerCheck)) {
-        throw new Error("Payer must be a participant");
-      }
+
+      update.items = patch.items;
+      update.amountCents = amountCents;
+      update.participants = participants;
+      update.weights = weights;
     } else if (patch.payerId !== undefined) {
       // participants unchanged; ensure payer remains a participant
-      if (!e.participants.includes(patch.payerId)) {
+      if (!(e.participants as string[]).includes(patch.payerId)) {
         throw new Error("Payer must be a participant");
       }
-    }
-
-    if (patch.weights !== undefined) {
-      // empty object means equal split → remove weights field
-      update.weights = Object.keys(patch.weights).length === 0 ? undefined : patch.weights;
     }
 
     await ctx.db.patch(expenseId, update);
