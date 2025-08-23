@@ -6,41 +6,24 @@ type ParsedItem = { description: string; priceCents: number };
 
 function parseLinesToItems(lines: string[]): ParsedItem[] {
   const items: ParsedItem[] = [];
-  const priceRegex = /(\$?\d+[.,]\d{2})$/;
+  const priceRegex = /(\$?\d+[.,]\d{2})/;
   const skipRegex = /(subtotal|tax|total|visa|mastercard|balance|change)/i;
-
-  // Queue of item descriptions waiting for a price line.
-  const pending: string[] = [];
 
   for (const raw of lines) {
     const line = raw.replace(/[^A-Za-z0-9$.\s:-]/g, "").trim();
-    if (!line) continue;
+    if (!line || skipRegex.test(line)) continue;
 
-    const priceMatch = line.match(priceRegex);
-    if (priceMatch) {
-      const price = parseFloat(priceMatch[1].replace(/[^0-9.]/g, ""));
-      let desc = line
-        .slice(0, line.length - priceMatch[1].length)
-        .replace(/[$:]+$/, "")
-        .trim();
-      if (!desc) {
-        // Pair with the earliest pending description if present.
-        desc = pending.shift() || "";
-      }
-      if (desc && !skipRegex.test(desc) && !isNaN(price)) {
-        items.push({ description: desc, priceCents: Math.round(price * 100) });
-      }
-    } else if (!skipRegex.test(line)) {
-      // Treat lines starting with a dash as a continuation of the previous item.
-      if (/^[-–•]/.test(line) && pending.length) {
-        const continuation = line.replace(/^[-–•]\s*/, "");
-        pending[pending.length - 1] += ` - ${continuation}`;
-      } else {
-        pending.push(line);
-      }
+    const match = line.match(priceRegex);
+    if (!match) continue;
+
+    const price = parseFloat(match[1].replace(/[^0-9.]/g, ""));
+    const desc = line
+      .slice(0, match.index)
+      .replace(/[$:]+$/, "")
+      .trim();
+    if (desc && !isNaN(price)) {
+      items.push({ description: desc, priceCents: Math.round(price * 100) });
     }
-    // Skip lines matching the skip regex but don't clear pending descriptions so
-    // prices appearing later can still pair with earlier descriptions.
   }
 
   return items;
@@ -51,7 +34,11 @@ function parseReceiptItems(data: any): ParsedItem[] {
   if (!result) return [];
 
   const overlayLines: string[] =
-    result?.TextOverlay?.Lines?.map((l: any) => l.LineText) || [];
+    result?.TextOverlay?.Lines?.map((l: any) => {
+      if (l.LineText) return l.LineText;
+      if (l.Words) return l.Words.map((w: any) => w.WordText).join(" ");
+      return "";
+    }) || [];
   const textLines: string[] = result?.ParsedText
     ? result.ParsedText.split("\n")
     : [];
@@ -93,6 +80,8 @@ export const scanReceipt = action({
       form.append("file", blob, `receipt.${ext}`);
       form.append("filetype", ext);
       form.append("isTable", "true");
+      form.append("OCREngine", "2");
+      form.append("scale", "true");
       const res = await fetch("https://api.ocr.space/parse/image", {
         method: "POST",
         headers: {
