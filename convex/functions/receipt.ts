@@ -21,7 +21,10 @@ function parseLinesToItems(lines: string[]): ParsedItem[] {
         priceToken.replace(/[£€$]/g, "").replace(/,/, ".")
       );
       const before = line.slice(0, line.lastIndexOf(priceToken)).trim();
-      const description = before || descriptions.shift() || "";
+      let description = before.replace(/[£€$]/g, "").trim();
+      if (!description) {
+        description = descriptions.shift() || "";
+      }
       if (description && !isNaN(value) && !skipRegex.test(description)) {
         items.push({
           description,
