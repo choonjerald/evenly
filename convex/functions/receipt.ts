@@ -17,17 +17,30 @@ export const scanReceipt = action({
     }
 
     try {
+      // Fetch the image bytes from storage and send as a file to OCR.Space.
+      const imgRes = await fetch(url);
+      if (!imgRes.ok) {
+        throw new Error(`Failed to fetch stored image: ${imgRes.status}`);
+      }
+      const blob = await imgRes.blob();
+      const form = new FormData();
+      form.append("file", blob, "receipt");
+
       const res = await fetch("https://api.ocr.space/parse/image", {
         method: "POST",
         headers: {
           apikey: key,
         },
-        body: new URLSearchParams({
-          url,
-        }),
+        body: form,
       });
+      if (!res.ok) {
+        throw new Error(`OCR request failed: ${res.status}`);
+      }
       const data: any = await res.json();
-      const text: string = data?.ParsedResults?.[0]?.ParsedText || "";
+      if (data.IsErroredOnProcessing || !data.ParsedResults?.length) {
+        throw new Error(data.ErrorMessage || "OCR returned no results");
+      }
+      const text: string = data.ParsedResults[0].ParsedText || "";
       const lines = text
         .split("\n")
         .map((l) => l.trim())
