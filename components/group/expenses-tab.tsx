@@ -17,6 +17,7 @@ import {
   Plus,
   Loader2,
   Trash,
+  List,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,12 @@ function initials(name?: string) {
   const a = parts[0]?.[0] ?? "";
   const b = parts[1]?.[0] ?? "";
   return (a + b || a).toUpperCase();
+}
+
+function formatPercentage(p: number) {
+  return Number.isInteger(p)
+    ? p.toString()
+    : p.toFixed(1).replace(/\.0$/, "");
 }
 
 export function ExpensesTab({ groupId }: { groupId: string }) {
@@ -375,10 +382,14 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                       For best results, crop the receipt image so only item descriptions
                       and prices are visible.
                     </p>
-                    {receipt && (
+                    {(receipt || editingExpense?.receiptUrl) && (
                       <div className="mt-2">
                         <img
-                          src={URL.createObjectURL(receipt)}
+                          src={
+                            receipt
+                              ? URL.createObjectURL(receipt)
+                              : (editingExpense?.receiptUrl as string)
+                          }
                           alt="Receipt preview"
                           className="w-full h-auto rounded-md"
                         />
@@ -712,6 +723,11 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                     e.weights as any,
                     e.amountCents
                   );
+                  const totalWeight = e.weights
+                    ? Object.values(
+                        e.weights as Record<string, number>
+                      ).reduce((sum, w) => sum + w, 0)
+                    : 0;
                   const yourShare =
                     me && pList.includes(me._id) ? shares[me._id] ?? 0 : null;
 
@@ -728,11 +744,17 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                         <div className="flex flex-wrap gap-1">
                           {pList.map((uid) => {
                             const name = userMap[uid]?.name ?? "User";
-                            const w = e.weights ? (e.weights as any)[uid] ?? 1 : 1;
+                            const w = e.weights
+                              ? (e.weights as Record<string, number>)[uid] ?? 1
+                              : 1;
+                            const pct =
+                              e.weights && totalWeight > 0
+                                ? (w / totalWeight) * 100
+                                : null;
                             return (
                               <Badge key={uid} variant="secondary">
                                 {name}
-                                {e.weights ? ` · w${w}` : ""}
+                                {pct != null ? ` · ${formatPercentage(pct)}%` : ""}
                               </Badge>
                             );
                           })}
@@ -889,15 +911,7 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                           <div className="flex-1">
                             <div className="font-medium">{u?.name ?? "User"}</div>
                             <div className="text-xs text-muted-foreground flex items-center gap-2">
-                              {detailsExpense.weights ? (
-                                <>
-                                  <span>Weight {w}</span>
-                                  <span>•</span>
-                                  <span>{pct.toFixed(1)}%</span>
-                                </>
-                              ) : (
-                                <span>{pct.toFixed(1)}%</span>
-                              )}
+                              <span>{formatPercentage(pct)}%</span>
                             </div>
                             <Progress value={pct} />
                           </div>
@@ -908,6 +922,45 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                 </section>
 
                 <Separator />
+
+                {/* Items */}
+                {detailsExpense.items && detailsExpense.items.length > 0 && (
+                  <section>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-2">
+                      <List className="h-4 w-4" />
+                      Items
+                    </div>
+                    <div className="space-y-2">
+                      {detailsExpense.items.map(
+                        (
+                          it: {
+                            description: string;
+                            priceCents: number;
+                            assignedTo: string[];
+                          },
+                          idx: number,
+                        ) => (
+                          <div key={idx} className="flex justify-between gap-4">
+                          <div>
+                            <div className="font-medium">{it.description}</div>
+                            {it.assignedTo && it.assignedTo.length > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                {it.assignedTo
+                                  .map((u: string) => userMap[u]?.name ?? "User")
+                                  .join(", ")}
+                              </div>
+                            )}
+                          </div>
+                          <div className="font-medium">
+                            {formatCurrency(it.priceCents, detailsExpense.currency)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {detailsExpense.items && detailsExpense.items.length > 0 && <Separator />}
 
                 {/* Receipt */}
                 {detailsExpense.receiptStorageId && (
