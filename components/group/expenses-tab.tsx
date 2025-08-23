@@ -8,7 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { Calendar, Users, User, Scale, Receipt, Plus } from "lucide-react";
+import { Calendar, Users, User, Scale, Receipt, Plus, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,6 +95,7 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
   const [receiptStorageId, setReceiptStorageId] = useState<Id<"_storage"> | null>(
     null
   );
+  const [scanning, setScanning] = useState(false);
 
   // Details sheet
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -201,6 +202,7 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                 <div className="mb-2 text-sm font-medium">Receipt (optional)</div>
                 <Input
                   type="file"
+                  disabled={scanning}
                   onChange={async (e) => {
                     const file = e.target.files?.[0] ?? null;
                     setReceipt(file);
@@ -208,6 +210,7 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                       setReceiptStorageId(null);
                       return;
                     }
+                    setScanning(true);
                     const postUrl = await generateUploadUrl();
                     const result = await fetch(postUrl, {
                       method: "POST",
@@ -220,13 +223,18 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                       const res = await scanReceipt({
                         receiptStorageId: storageId as Id<"_storage">,
                       });
-                      setItems(
-                        res.items.map((it: any) => ({
-                          description: it.description,
-                          amount: (it.priceCents / 100).toFixed(2),
-                          assignedTo: [],
-                        }))
-                      );
+                      if (res.items.length > 0) {
+                        setItems(
+                          res.items.map((it: any) => ({
+                            description: it.description,
+                            amount: (it.priceCents / 100).toFixed(2),
+                            assignedTo: [],
+                          }))
+                        );
+                      } else {
+                        toast.error("No items detected; please enter items manually");
+                        setItems([{ description: "", amount: "", assignedTo: [] }]);
+                      }
                     } catch (err: any) {
                       const message =
                         err instanceof Error && err.message === "OCR_API_KEY not configured"
@@ -234,6 +242,8 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                           : "OCR failed; please enter items manually";
                       toast.error(message);
                       setItems([{ description: "", amount: "", assignedTo: [] }]);
+                    } finally {
+                      setScanning(false);
                     }
                   }}
                 />
@@ -244,6 +254,12 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                       alt="Receipt preview"
                       className="w-full h-auto rounded-md"
                     />
+                  </div>
+                )}
+                {scanning && (
+                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Scanning receipt...</span>
                   </div>
                 )}
               </div>
