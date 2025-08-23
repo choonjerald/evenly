@@ -60,6 +60,7 @@ import {
 import { formatCurrency } from "@/lib/formatCurrency";
 import { computeWeightedShares, computeSharesFromItems } from "@/lib/settlements";
 import { ExpenseActions } from "@/components/group/expense-actions";
+import { toast } from "sonner";
 
 function initials(name?: string) {
   if (!name) return "??";
@@ -226,7 +227,12 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                           assignedTo: [],
                         }))
                       );
-                    } catch {
+                    } catch (err: any) {
+                      const message =
+                        err instanceof Error && err.message === "OCR_API_KEY not configured"
+                          ? "OCR is not configured; please enter items manually"
+                          : "OCR failed; please enter items manually";
+                      toast.error(message);
                       setItems([{ description: "", amount: "", assignedTo: [] }]);
                     }
                   }}

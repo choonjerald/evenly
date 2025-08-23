@@ -11,11 +11,16 @@ export const scanReceipt = action({
     const url = await ctx.storage.getUrl(receiptStorageId);
     if (!url) throw new Error("Receipt not found");
 
+    const key = process.env.OCR_API_KEY;
+    if (!key) {
+      throw new Error("OCR_API_KEY not configured");
+    }
+
     try {
       const res = await fetch("https://api.ocr.space/parse/image", {
         method: "POST",
         headers: {
-          apikey: process.env.OCR_API_KEY || "",
+          apikey: key,
         },
         body: new URLSearchParams({
           url,
