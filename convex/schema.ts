@@ -35,6 +35,17 @@ export default defineSchema({
     description: v.string(),
     participants: v.array(v.id("users")),
     weights: v.optional(v.record(v.string(), v.number())), // { userId: weight }
+    items: v.optional(
+      v.array(
+        v.object({
+          description: v.string(),
+          priceCents: v.number(),
+          assignedTo: v.array(v.id("users")),
+        }),
+      ),
+    ),
+    serviceTaxRate: v.optional(v.number()),
+    gstRate: v.optional(v.number()),
     receiptStorageId: v.optional(v.id("_storage")),
     createdAt: v.number(),
   }).index("by_group_createdAt", ["groupId", "createdAt"]),

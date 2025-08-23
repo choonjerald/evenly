@@ -25,6 +25,28 @@ export function suggestSettlements(net: Net) {
 
 
 type UserId = string;
+
+export type Item = { priceCents: number; assignedTo: UserId[] };
+
+export function computeSharesFromItems(items: Item[]): {
+  amountCents: number;
+  weights: Record<UserId, number>;
+} {
+  const weights: Record<UserId, number> = {};
+  let amountCents = 0;
+  for (const item of items) {
+    if (item.priceCents <= 0) throw new Error("Item price must be positive");
+    if (item.assignedTo.length === 0)
+      throw new Error("Item must be assigned to at least one user");
+    amountCents += item.priceCents;
+    const share = item.priceCents / item.assignedTo.length;
+    for (const u of item.assignedTo) {
+      weights[u] = (weights[u] ?? 0) + share;
+    }
+  }
+  return { amountCents, weights };
+}
+
 export function computeWeightedShares(
   participants: UserId[],
   weights: Record<UserId, number> | undefined,
