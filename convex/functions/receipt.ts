@@ -8,15 +8,11 @@ function parseLinesToItems(lines: string[]): ParsedItem[] {
   const items: ParsedItem[] = [];
   const priceRegex = /\b(?:[$£€])?\d+(?:[.,]\d{2})\b/g;
   const skipRegex = /(subtotal|tax|total|visa|mastercard|balance|change)/i;
-  let pending = "";
+  const descriptions: string[] = [];
 
   for (const raw of lines) {
     const line = raw.replace(/\s+/g, " ").trim();
     if (!line) continue;
-    if (skipRegex.test(line)) {
-      pending = "";
-      continue;
-    }
 
     const matches = line.match(priceRegex);
     if (matches && matches.length) {
@@ -24,18 +20,20 @@ function parseLinesToItems(lines: string[]): ParsedItem[] {
       const value = parseFloat(
         priceToken.replace(/[£€$]/g, "").replace(/,/, ".")
       );
-      let before = line.slice(0, line.lastIndexOf(priceToken)).trim();
-      let description = pending ? `${pending} ${before}`.trim() : before;
-      if (!before && pending) description = pending.trim();
-      pending = "";
-      if (description && !isNaN(value)) {
+      const before = line.slice(0, line.lastIndexOf(priceToken)).trim();
+      const description = before || descriptions.shift() || "";
+      if (description && !isNaN(value) && !skipRegex.test(description)) {
         items.push({
           description,
           priceCents: Math.round(value * 100),
         });
       }
     } else if (!skipRegex.test(line)) {
-      pending = pending ? `${pending} ${line}` : line;
+      if (line.startsWith("-") && descriptions.length) {
+        descriptions[descriptions.length - 1] = `${descriptions[descriptions.length - 1]} ${line}`.trim();
+      } else {
+        descriptions.push(line);
+      }
     }
   }
 
@@ -57,9 +55,9 @@ function parseReceiptItems(data: any): ParsedItem[] {
     : [];
   const lines = overlayLines.length ? overlayLines : textLines;
 
-  return parseLinesToItems(
-    lines.map((l) => l.trim()).filter(Boolean)
-  );
+  const normalized = lines.map((l) => l.trim()).filter(Boolean);
+  console.log("OCR lines", normalized);
+  return parseLinesToItems(normalized);
 }
 
 export const scanReceipt = action({
