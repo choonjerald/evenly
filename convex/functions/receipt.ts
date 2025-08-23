@@ -6,23 +6,36 @@ type ParsedItem = { description: string; priceCents: number };
 
 function parseLinesToItems(lines: string[]): ParsedItem[] {
   const items: ParsedItem[] = [];
-  const priceRegex = /(\$?\d+[.,]\d{2})/;
+  const priceRegex = /\b(?:[$£€])?\d+(?:[.,]\d{2})\b/g;
   const skipRegex = /(subtotal|tax|total|visa|mastercard|balance|change)/i;
+  let pending = "";
 
   for (const raw of lines) {
-    const line = raw.replace(/[^A-Za-z0-9$.\s:-]/g, "").trim();
-    if (!line || skipRegex.test(line)) continue;
+    const line = raw.replace(/\s+/g, " ").trim();
+    if (!line) continue;
+    if (skipRegex.test(line)) {
+      pending = "";
+      continue;
+    }
 
-    const match = line.match(priceRegex);
-    if (!match) continue;
-
-    const price = parseFloat(match[1].replace(/[^0-9.]/g, ""));
-    const desc = line
-      .slice(0, match.index)
-      .replace(/[$:]+$/, "")
-      .trim();
-    if (desc && !isNaN(price)) {
-      items.push({ description: desc, priceCents: Math.round(price * 100) });
+    const matches = line.match(priceRegex);
+    if (matches && matches.length) {
+      const priceToken = matches[matches.length - 1];
+      const value = parseFloat(
+        priceToken.replace(/[£€$]/g, "").replace(/,/, ".")
+      );
+      let before = line.slice(0, line.lastIndexOf(priceToken)).trim();
+      let description = pending ? `${pending} ${before}`.trim() : before;
+      if (!before && pending) description = pending.trim();
+      pending = "";
+      if (description && !isNaN(value)) {
+        items.push({
+          description,
+          priceCents: Math.round(value * 100),
+        });
+      }
+    } else if (!skipRegex.test(line)) {
+      pending = pending ? `${pending} ${line}` : line;
     }
   }
 
