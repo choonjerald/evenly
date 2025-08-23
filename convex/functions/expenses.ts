@@ -58,6 +58,8 @@ export const addExpense = mutation({
         })
       )
     ),
+    serviceTaxRate: v.optional(v.number()),
+    gstRate: v.optional(v.number()),
     receiptStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
@@ -68,17 +70,22 @@ export const addExpense = mutation({
     let weights: Record<string, number> | undefined = undefined;
     let items = args.items;
 
+    const taxMultiplier =
+      1 + (args.serviceTaxRate ?? 0) / 100 + (args.gstRate ?? 0) / 100;
+
     if (items && items.length > 0) {
       const shares = computeSharesFromItems(items as any);
-      amountCents = shares.amountCents;
-      weights = shares.weights;
+      amountCents = Math.round(shares.amountCents * taxMultiplier);
+      weights = Object.fromEntries(
+        Object.entries(shares.weights).map(([u, c]) => [u, c * taxMultiplier])
+      );
       participants = Object.keys(weights) as Id<"users">[];
     } else {
       if (args.amountCents == null || !args.participants) {
         throw new Error("Amount and participants required");
       }
       if (args.amountCents <= 0) throw new Error("Amount must be positive");
-      amountCents = args.amountCents;
+      amountCents = Math.round(args.amountCents * taxMultiplier);
       participants = args.participants as Id<"users">[];
       weights = args.weights ?? undefined;
     }
@@ -104,6 +111,8 @@ export const addExpense = mutation({
       participants,
       weights,
       items,
+      serviceTaxRate: args.serviceTaxRate ?? 0,
+      gstRate: args.gstRate ?? 0,
       receiptStorageId: args.receiptStorageId,
       createdAt: Date.now(),
     });
@@ -194,6 +203,8 @@ export const updateExpense = mutation({
       )
     ),
     receiptStorageId: v.optional(v.id("_storage")),
+    serviceTaxRate: v.optional(v.number()),
+    gstRate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { expenseId, ...patch } = args;
@@ -210,10 +221,14 @@ export const updateExpense = mutation({
     if (patch.receiptStorageId !== undefined)
       update.receiptStorageId = patch.receiptStorageId;
 
+    const serviceTaxRate = patch.serviceTaxRate ?? e.serviceTaxRate ?? 0;
+    const gstRate = patch.gstRate ?? e.gstRate ?? 0;
+
     if (patch.items !== undefined) {
       if (patch.items.length === 0) throw new Error("Items required");
 
       const { amountCents, weights } = computeSharesFromItems(patch.items as any);
+      const multiplier = 1 + serviceTaxRate / 100 + gstRate / 100;
 
       const participants = Object.keys(weights);
       const payerCheck = patch.payerId ?? e.payerId;
@@ -230,9 +245,14 @@ export const updateExpense = mutation({
       }
 
       update.items = patch.items;
-      update.amountCents = amountCents;
-      update.participants = participants;
-      update.weights = weights;
+      update.amountCents = Math.round(amountCents * multiplier);
+      const weighted = Object.fromEntries(
+        Object.entries(weights).map(([u, c]) => [u, c * multiplier])
+      );
+      update.participants = Object.keys(weighted);
+      update.weights = weighted;
+      update.serviceTaxRate = serviceTaxRate;
+      update.gstRate = gstRate;
     } else {
       if (patch.amountCents !== undefined) {
         if (patch.amountCents <= 0) throw new Error("Amount must be positive");
@@ -260,6 +280,9 @@ export const updateExpense = mutation({
       if (patch.weights !== undefined) {
         update.weights = patch.weights;
       }
+      if (patch.serviceTaxRate !== undefined)
+        update.serviceTaxRate = patch.serviceTaxRate;
+      if (patch.gstRate !== undefined) update.gstRate = patch.gstRate;
     }
 
     await ctx.db.patch(expenseId, update);

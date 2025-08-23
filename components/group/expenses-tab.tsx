@@ -8,7 +8,16 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { Calendar, Users, User, Scale, Receipt, Plus, Loader2 } from "lucide-react";
+import {
+  Calendar,
+  Users,
+  User,
+  Scale,
+  Receipt,
+  Plus,
+  Loader2,
+  Trash,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,6 +113,8 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
     null
   );
   const [scanning, setScanning] = useState(false);
+  const [serviceTax, setServiceTax] = useState("");
+  const [gst, setGst] = useState("");
 
   // Details sheet
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -119,13 +130,19 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
     [members]
   );
 
-  const totalAmountCents = useMemo(
+  const itemsTotalCents = useMemo(
     () =>
       items.reduce(
         (sum, item) => sum + Math.round(parseFloat(item.amount || "0") * 100),
         0
       ),
     [items]
+  );
+  const taxMultiplier =
+    1 + parseFloat(serviceTax || "0") / 100 + parseFloat(gst || "0") / 100;
+  const totalAmountCents = useMemo(
+    () => Math.round(itemsTotalCents * taxMultiplier),
+    [itemsTotalCents, taxMultiplier]
   );
   const perMemberTotals = useMemo(() => {
     const valid = items
@@ -134,8 +151,13 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
         assignedTo: item.assignedTo,
       }))
       .filter((it) => it.priceCents > 0 && it.assignedTo.length > 0);
-    return computeSharesFromItems(valid).weights;
-  }, [items]);
+    const { weights } = computeSharesFromItems(valid);
+    return computeWeightedShares(
+      Object.keys(weights),
+      weights,
+      totalAmountCents
+    );
+  }, [items, totalAmountCents]);
 
   function resetForm() {
     setEditingExpense(null);
@@ -149,6 +171,8 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
     setItems([{ description: "", amount: "", assignedTo: [] }]);
     setReceipt(null);
     setReceiptStorageId(null);
+    setServiceTax("");
+    setGst("");
   }
 
   function openEdit(e: any) {
@@ -166,6 +190,8 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
       );
       setReceipt(null);
       setReceiptStorageId(e.receiptStorageId ?? null);
+      setServiceTax(e.serviceTaxRate != null ? String(e.serviceTaxRate) : "");
+      setGst(e.gstRate != null ? String(e.gstRate) : "");
     } else {
       setTab("basic");
       setAmount((e.amountCents / 100).toFixed(2));
@@ -177,6 +203,8 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
         setMode("equal");
         setWeights({});
       }
+      setServiceTax("");
+      setGst("");
     }
     setOpen(true);
   }
@@ -343,6 +371,10 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                         }
                       }}
                     />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      For best results, crop the receipt image so only item descriptions
+                      and prices are visible.
+                    </p>
                     {receipt && (
                       <div className="mt-2">
                         <img
@@ -361,7 +393,18 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                   </div>
                   <div className="space-y-2">
                     {items.map((item, idx) => (
-                      <div key={idx} className="border p-2 rounded-md space-y-2">
+                      <div key={idx} className="relative border p-2 rounded-md space-y-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute top-2 right-2 h-6 w-6 p-0"
+                          onClick={() =>
+                            setItems(items.filter((_, i) => i !== idx))
+                          }
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
                         <Input
                           placeholder="Item description"
                           value={item.description}
@@ -418,6 +461,26 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                       Add item
                     </Button>
                   </div>
+                  <div className="flex gap-2 mt-4">
+                    <div className="flex-1">
+                      <label className="mb-1 block text-sm">Service Tax (%)</label>
+                      <Input
+                        placeholder="0"
+                        inputMode="decimal"
+                        value={serviceTax}
+                        onChange={(e) => setServiceTax(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="mb-1 block text-sm">GST (%)</label>
+                      <Input
+                        placeholder="0"
+                        inputMode="decimal"
+                        value={gst}
+                        onChange={(e) => setGst(e.target.value)}
+                      />
+                    </div>
+                  </div>
                   <div className="mt-4 space-y-1">
                     <div className="font-medium">Per-member totals</div>
                     {Object.entries(perMemberTotals).map(([uid, cents]) => (
@@ -468,6 +531,8 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                         payerId: payer as any,
                         currency: "SGD",
                         items: payloadItems,
+                        serviceTaxRate: parseFloat(serviceTax || "0"),
+                        gstRate: parseFloat(gst || "0"),
                         receiptStorageId: storageId ?? undefined,
                       });
                     } else {
@@ -477,6 +542,8 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                         currency: "SGD",
                         description: desc,
                         items: payloadItems,
+                        serviceTaxRate: parseFloat(serviceTax || "0"),
+                        gstRate: parseFloat(gst || "0"),
                         receiptStorageId: storageId ?? undefined,
                       });
                     }

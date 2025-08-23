@@ -44,6 +44,8 @@ export default defineSchema({
         }),
       ),
     ),
+    serviceTaxRate: v.optional(v.number()),
+    gstRate: v.optional(v.number()),
     receiptStorageId: v.optional(v.id("_storage")),
     createdAt: v.number(),
   }).index("by_group_createdAt", ["groupId", "createdAt"]),
