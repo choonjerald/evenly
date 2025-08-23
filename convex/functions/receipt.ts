@@ -50,33 +50,16 @@ function parseReceiptItems(data: any): ParsedItem[] {
   const result = data?.ParsedResults?.[0];
   if (!result) return [];
 
-  // Receipt-scanning endpoint may return structured line items.
-  const structured: any[] =
-    result?.Receipt?.LineItems ||
-    result?.Receipt?.Items ||
-    result?.LineItems ||
-    [];
+  const overlayLines: string[] =
+    result?.TextOverlay?.Lines?.map((l: any) => l.LineText) || [];
+  const textLines: string[] = result?.ParsedText
+    ? result.ParsedText.split("\n")
+    : [];
+  const lines = overlayLines.length ? overlayLines : textLines;
 
-  if (Array.isArray(structured) && structured.length) {
-    return structured
-      .map((it) => {
-        const desc: string =
-          it.Description || it.Item || it.Name || it.ProductName || "";
-        const priceStr: string =
-          it.TotalPrice || it.Price || it.Amount || it.PriceTotal || "";
-        const price = parseFloat(priceStr.replace(/[^0-9.]/g, ""));
-        if (!desc || isNaN(price)) return null;
-        return { description: desc, priceCents: Math.round(price * 100) };
-      })
-      .filter(Boolean) as ParsedItem[];
-  }
-
-  const text: string = result?.ParsedText || "";
-  const lines = text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  return parseLinesToItems(lines);
+  return parseLinesToItems(
+    lines.map((l) => l.trim()).filter(Boolean)
+  );
 }
 
 export const scanReceipt = action({
@@ -109,7 +92,8 @@ export const scanReceipt = action({
       const form = new FormData();
       form.append("file", blob, `receipt.${ext}`);
       form.append("filetype", ext);
-      const res = await fetch("https://api.ocr.space/parse/receipt", {
+      form.append("isTable", "true");
+      const res = await fetch("https://api.ocr.space/parse/image", {
         method: "POST",
         headers: {
           apikey: key,
