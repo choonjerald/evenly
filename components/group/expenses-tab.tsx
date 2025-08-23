@@ -82,8 +82,10 @@ function initials(name?: string) {
   return (a + b || a).toUpperCase();
 }
 
-function formatWeight(w: number) {
-  return Number.isInteger(w) ? w.toString() : w.toFixed(2).replace(/\.?0+$/, "");
+function formatPercentage(p: number) {
+  return Number.isInteger(p)
+    ? p.toString()
+    : p.toFixed(1).replace(/\.0$/, "");
 }
 
 export function ExpensesTab({ groupId }: { groupId: string }) {
@@ -716,6 +718,11 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                     e.weights as any,
                     e.amountCents
                   );
+                  const totalWeight = e.weights
+                    ? Object.values(
+                        e.weights as Record<string, number>
+                      ).reduce((sum, w) => sum + w, 0)
+                    : 0;
                   const yourShare =
                     me && pList.includes(me._id) ? shares[me._id] ?? 0 : null;
 
@@ -732,11 +739,17 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                         <div className="flex flex-wrap gap-1">
                           {pList.map((uid) => {
                             const name = userMap[uid]?.name ?? "User";
-                            const w = e.weights ? (e.weights as any)[uid] ?? 1 : 1;
+                            const w = e.weights
+                              ? (e.weights as Record<string, number>)[uid] ?? 1
+                              : 1;
+                            const pct =
+                              e.weights && totalWeight > 0
+                                ? (w / totalWeight) * 100
+                                : null;
                             return (
                               <Badge key={uid} variant="secondary">
                                 {name}
-                                {e.weights ? ` · w${formatWeight(w)}` : ""}
+                                {pct != null ? ` · ${formatPercentage(pct)}%` : ""}
                               </Badge>
                             );
                           })}
@@ -893,15 +906,7 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                           <div className="flex-1">
                             <div className="font-medium">{u?.name ?? "User"}</div>
                             <div className="text-xs text-muted-foreground flex items-center gap-2">
-                              {detailsExpense.weights ? (
-                                <>
-                                  <span>Weight {formatWeight(w)}</span>
-                                  <span>•</span>
-                                  <span>{pct.toFixed(1)}%</span>
-                                </>
-                              ) : (
-                                <span>{pct.toFixed(1)}%</span>
-                              )}
+                              <span>{formatPercentage(pct)}%</span>
                             </div>
                             <Progress value={pct} />
                           </div>
