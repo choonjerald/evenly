@@ -46,6 +46,39 @@ function parseLinesToItems(lines: string[]): ParsedItem[] {
   return items;
 }
 
+function parseReceiptItems(data: any): ParsedItem[] {
+  const result = data?.ParsedResults?.[0];
+  if (!result) return [];
+
+  // Receipt-scanning endpoint may return structured line items.
+  const structured: any[] =
+    result?.Receipt?.LineItems ||
+    result?.Receipt?.Items ||
+    result?.LineItems ||
+    [];
+
+  if (Array.isArray(structured) && structured.length) {
+    return structured
+      .map((it) => {
+        const desc: string =
+          it.Description || it.Item || it.Name || it.ProductName || "";
+        const priceStr: string =
+          it.TotalPrice || it.Price || it.Amount || it.PriceTotal || "";
+        const price = parseFloat(priceStr.replace(/[^0-9.]/g, ""));
+        if (!desc || isNaN(price)) return null;
+        return { description: desc, priceCents: Math.round(price * 100) };
+      })
+      .filter(Boolean) as ParsedItem[];
+  }
+
+  const text: string = result?.ParsedText || "";
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return parseLinesToItems(lines);
+}
+
 export const scanReceipt = action({
   args: { receiptStorageId: v.id("_storage") },
   handler: async (ctx, { receiptStorageId }) => {
@@ -76,6 +109,7 @@ export const scanReceipt = action({
       const form = new FormData();
       form.append("file", blob, `receipt.${ext}`);
       form.append("filetype", ext);
+      form.append("isReceipt", "true");
 
       const res = await fetch("https://api.ocr.space/parse/image", {
         method: "POST",
@@ -88,19 +122,17 @@ export const scanReceipt = action({
         throw new Error(`OCR request failed: ${res.status}`);
       }
       const data: any = await res.json();
-      if (data.IsErroredOnProcessing || !data.ParsedResults?.length) {
+      if (data.IsErroredOnProcessing) {
         throw new Error(data.ErrorMessage || "OCR returned no results");
       }
-      const text: string = data.ParsedResults[0].ParsedText || "";
-      const lines = text
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
 
-      const items = parseLinesToItems(lines);
+      const items = parseReceiptItems(data);
 
-      console.log("OCR lines", lines);
+      console.log("OCR raw", data);
       console.log("OCR items", items);
+      if (!items.length) {
+        throw new Error("OCR returned no line items");
+      }
       return { items };
     } catch (err) {
       console.error("OCR failed", err);
