@@ -23,8 +23,15 @@ export const scanReceipt = action({
         throw new Error(`Failed to fetch stored image: ${imgRes.status}`);
       }
       const blob = await imgRes.blob();
+      const contentType = blob.type || imgRes.headers.get("content-type") || "image/jpeg";
+      let ext = "jpg";
+      if (contentType.includes("png")) ext = "png";
+      else if (contentType.includes("jpeg")) ext = "jpg";
+      else if (contentType.includes("webp")) ext = "webp";
+
       const form = new FormData();
-      form.append("file", blob, "receipt");
+      form.append("file", blob, `receipt.${ext}`);
+      form.append("filetype", ext);
 
       const res = await fetch("https://api.ocr.space/parse/image", {
         method: "POST",
@@ -61,7 +68,7 @@ export const scanReceipt = action({
       return { items };
     } catch (err) {
       console.error("OCR failed", err);
-      return { items: [] };
+      throw err;
     }
   },
 });
