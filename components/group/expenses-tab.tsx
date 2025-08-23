@@ -393,27 +393,32 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                   </div>
                   <div className="space-y-2">
                     {items.map((item, idx) => (
-                      <div key={idx} className="relative border p-2 rounded-md space-y-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute top-2 right-2 h-6 w-6 p-0"
-                          onClick={() =>
-                            setItems(items.filter((_, i) => i !== idx))
-                          }
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                        <Input
-                          placeholder="Item description"
-                          value={item.description}
-                          onChange={(e) => {
-                            const newItems = [...items];
-                            newItems[idx] = { ...newItems[idx], description: e.target.value };
-                            setItems(newItems);
-                          }}
-                        />
+                      <div key={idx} className="border p-2 rounded-md space-y-2">
+                        <div className="flex items-start gap-2">
+                          <Input
+                            placeholder="Item description"
+                            className="flex-1"
+                            value={item.description}
+                            onChange={(e) => {
+                              const newItems = [...items];
+                              newItems[idx] = {
+                                ...newItems[idx],
+                                description: e.target.value,
+                              };
+                              setItems(newItems);
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              setItems(items.filter((_, i) => i !== idx))
+                            }
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
                         <Input
                           placeholder="Amount"
                           inputMode="decimal"
