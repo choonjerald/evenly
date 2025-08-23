@@ -6,29 +6,41 @@ type ParsedItem = { description: string; priceCents: number };
 
 function parseLinesToItems(lines: string[]): ParsedItem[] {
   const items: ParsedItem[] = [];
-  let pendingDesc: string | null = null;
   const priceRegex = /(\$?\d+[.,]\d{2})$/;
   const skipRegex = /(subtotal|tax|total|visa|mastercard|balance|change)/i;
+
+  // Queue of item descriptions waiting for a price line.
+  const pending: string[] = [];
 
   for (const raw of lines) {
     const line = raw.replace(/[^A-Za-z0-9$.\s:-]/g, "").trim();
     if (!line) continue;
+
     const priceMatch = line.match(priceRegex);
     if (priceMatch) {
       const price = parseFloat(priceMatch[1].replace(/[^0-9.]/g, ""));
-      const desc = line
+      let desc = line
         .slice(0, line.length - priceMatch[1].length)
         .replace(/[$:]+$/, "")
-        .trim() || pendingDesc;
+        .trim();
+      if (!desc) {
+        // Pair with the earliest pending description if present.
+        desc = pending.shift() || "";
+      }
       if (desc && !skipRegex.test(desc) && !isNaN(price)) {
         items.push({ description: desc, priceCents: Math.round(price * 100) });
       }
-      pendingDesc = null;
     } else if (!skipRegex.test(line)) {
-      pendingDesc = line;
-    } else {
-      pendingDesc = null;
+      // Treat lines starting with a dash as a continuation of the previous item.
+      if (/^[-–•]/.test(line) && pending.length) {
+        const continuation = line.replace(/^[-–•]\s*/, "");
+        pending[pending.length - 1] += ` - ${continuation}`;
+      } else {
+        pending.push(line);
+      }
     }
+    // Skip lines matching the skip regex but don't clear pending descriptions so
+    // prices appearing later can still pair with earlier descriptions.
   }
 
   return items;
