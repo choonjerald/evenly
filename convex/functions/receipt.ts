@@ -2,6 +2,38 @@ import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
 
+type ParsedItem = { description: string; priceCents: number };
+
+function parseLinesToItems(lines: string[]): ParsedItem[] {
+  const items: ParsedItem[] = [];
+  let pendingDesc: string | null = null;
+  const priceRegex = /(\$?\d+[.,]\d{2})$/;
+  const skipRegex = /(subtotal|tax|total|visa|mastercard|balance|change)/i;
+
+  for (const raw of lines) {
+    const line = raw.replace(/[^A-Za-z0-9$.\s:-]/g, "").trim();
+    if (!line) continue;
+    const priceMatch = line.match(priceRegex);
+    if (priceMatch) {
+      const price = parseFloat(priceMatch[1].replace(/[^0-9.]/g, ""));
+      const desc = line
+        .slice(0, line.length - priceMatch[1].length)
+        .replace(/[$:]+$/, "")
+        .trim() || pendingDesc;
+      if (desc && !skipRegex.test(desc) && !isNaN(price)) {
+        items.push({ description: desc, priceCents: Math.round(price * 100) });
+      }
+      pendingDesc = null;
+    } else if (!skipRegex.test(line)) {
+      pendingDesc = line;
+    } else {
+      pendingDesc = null;
+    }
+  }
+
+  return items;
+}
+
 export const scanReceipt = action({
   args: { receiptStorageId: v.id("_storage") },
   handler: async (ctx, { receiptStorageId }) => {
@@ -53,17 +85,7 @@ export const scanReceipt = action({
         .map((l) => l.trim())
         .filter(Boolean);
 
-      const items: { description: string; priceCents: number }[] = [];
-      for (const line of lines) {
-        const match = line.match(/(.+?)\s+(\d+[\.,]?\d*)$/);
-        if (match) {
-          const desc = match[1].trim();
-          const price = parseFloat(match[2].replace(/,/g, ""));
-          if (!isNaN(price)) {
-            items.push({ description: desc, priceCents: Math.round(price * 100) });
-          }
-        }
-      }
+      const items = parseLinesToItems(lines);
 
       console.log("OCR lines", lines);
       console.log("OCR items", items);

@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { requireUser } from "../auth";
 import { api } from "../_generated/api";
 import { computeSharesFromItems } from "../../lib/settlements";
+import { Id } from "../_generated/dataModel";
 
 export const generateUploadUrl = mutation(async (ctx) => {
   return await ctx.storage.generateUploadUrl();
@@ -63,7 +64,7 @@ export const addExpense = mutation({
     await requireMembership(ctx, args.groupId);
 
     let amountCents: number;
-    let participants: string[];
+    let participants: Id<"users">[];
     let weights: Record<string, number> | undefined = undefined;
     let items = args.items;
 
@@ -71,14 +72,14 @@ export const addExpense = mutation({
       const shares = computeSharesFromItems(items as any);
       amountCents = shares.amountCents;
       weights = shares.weights;
-      participants = Object.keys(weights);
+      participants = Object.keys(weights) as Id<"users">[];
     } else {
       if (args.amountCents == null || !args.participants) {
         throw new Error("Amount and participants required");
       }
       if (args.amountCents <= 0) throw new Error("Amount must be positive");
       amountCents = args.amountCents;
-      participants = args.participants as string[];
+      participants = args.participants as Id<"users">[];
       weights = args.weights ?? undefined;
     }
 

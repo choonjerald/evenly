@@ -224,7 +224,11 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                   ))}
                 </SelectContent>
               </Select>
-              <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
+              <Tabs
+                value={tab}
+                onValueChange={(v: string) => setTab(v as "basic" | "receipt")}
+                className="w-full"
+              >
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="basic">Basic</TabsTrigger>
                   <TabsTrigger value="receipt">Receipt</TabsTrigger>
