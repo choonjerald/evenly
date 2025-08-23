@@ -1,11 +1,12 @@
-import { mutation } from "../_generated/server";
+import { action } from "../_generated/server";
 import { v } from "convex/values";
-import { requireUser } from "../auth";
+import { api } from "../_generated/api";
 
-export const scanReceipt = mutation({
+export const scanReceipt = action({
   args: { receiptStorageId: v.id("_storage") },
   handler: async (ctx, { receiptStorageId }) => {
-    await requireUser(ctx);
+    const me = await ctx.runQuery(api.auth.getMe, {});
+    if (!me) throw new Error("Unauthorized");
 
     const url = await ctx.storage.getUrl(receiptStorageId);
     if (!url) throw new Error("Receipt not found");

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 
@@ -80,7 +80,7 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
   const updateExpense = useMutation(api.functions.expenses.updateExpense);
   const deleteExpenseMut = useMutation(api.functions.expenses.deleteExpense);
   const generateUploadUrl = useMutation(api.functions.expenses.generateUploadUrl);
-  const scanReceipt = useMutation(api.functions.receipt.scanReceipt);
+  const scanReceipt = useAction(api.functions.receipt.scanReceipt);
 
   // Create/Edit dialog state
   const [open, setOpen] = useState(false);
