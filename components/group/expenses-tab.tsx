@@ -140,7 +140,7 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
         <h3 className="text-xl font-semibold">Expenses</h3>
         <Dialog
           open={open}
-          onOpenChange={(v) => {
+          onOpenChange={(v: boolean) => {
             setOpen(v);
             if (!v) resetForm();
           }}
@@ -168,7 +168,10 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
-              <Select value={payer ?? undefined} onValueChange={(v) => setPayer(v)}>
+              <Select
+                value={payer ?? undefined}
+                onValueChange={(v: string) => setPayer(v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Payer" />
                 </SelectTrigger>
@@ -590,14 +593,12 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
                       const w = detailsExpense.weights
                         ? (detailsExpense.weights as any)[uid] ?? 1
                         : 1;
-                      const pct =
-                        detailsExpense.weights
-                          ? (w /
-                              Object.values(detailsExpense.weights as any).reduce(
-                                (a: number, b: number) => a + b,
-                                0
-                              )) * 100
-                          : 100 / (detailsExpense.participants?.length || 1);
+                      const totalWeight = (
+                        Object.values(detailsExpense.weights as any) as number[]
+                      ).reduce((a, b) => a + b, 0);
+                      const pct = detailsExpense.weights
+                        ? (w / totalWeight) * 100
+                        : 100 / (detailsExpense.participants?.length || 1);
                       return (
                         <div key={uid} className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
