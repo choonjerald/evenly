@@ -65,6 +65,10 @@ export const addExpense = mutation({
   handler: async (ctx, args) => {
     await requireMembership(ctx, args.groupId);
 
+    if (!args.description.trim()) {
+      throw new Error("Description required");
+    }
+
     let amountCents: number;
     let participants: Id<"users">[];
     let weights: Record<string, number> | undefined = undefined;
@@ -215,7 +219,12 @@ export const updateExpense = mutation({
     const update: any = {};
 
     // Optional validations + assignments
-    if (patch.description !== undefined) update.description = patch.description;
+    if (patch.description !== undefined) {
+      if (!patch.description.trim()) {
+        throw new Error("Description required");
+      }
+      update.description = patch.description;
+    }
     if (patch.currency !== undefined) update.currency = patch.currency;
     if (patch.payerId !== undefined) update.payerId = patch.payerId;
     if (patch.receiptStorageId !== undefined)
