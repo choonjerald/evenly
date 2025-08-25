@@ -227,12 +227,23 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
             if (!v) resetForm();
           }}
         >
-          <DialogTrigger asChild>
-            <Button className="hidden md:inline-flex">
-              <Plus className="mr-2 h-4 w-4" />
-              {editingExpense ? "Edit expense" : "Add expense"}
-            </Button>
-          </DialogTrigger>
+          <div className="flex items-center gap-2">
+            <DialogTrigger asChild>
+              <Button className="hidden md:inline-flex">
+                <Plus className="mr-2 h-4 w-4" />
+                {editingExpense ? "Edit expense" : "Add expense"}
+              </Button>
+            </DialogTrigger>
+            <DialogTrigger asChild>
+              <Button
+                size="icon"
+                className="md:hidden"
+                aria-label={editingExpense ? "Edit expense" : "Add expense"}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+          </div>
           <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingExpense ? "Edit expense" : "Add expense"}</DialogTitle>
