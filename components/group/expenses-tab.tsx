@@ -528,7 +528,14 @@ export function ExpensesTab({ groupId }: { groupId: string }) {
             <DialogFooter>
               <Button
                 onClick={async () => {
-                  if (!payer) return;
+                  if (!desc.trim()) {
+                    toast.error("Please add a description");
+                    return;
+                  }
+                  if (!payer) {
+                    toast.error("Please add a payer");
+                    return;
+                  }
 
                   if (tab === "receipt") {
                     if (items.length === 0) return;
