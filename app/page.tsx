@@ -35,6 +35,9 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   const { userId } = await auth();
+  const dinnerMembers = ["Alex", "Bea", "Cam", "Drew"] as const;
+  const dinnerTotal = 120;
+  const dinnerEach = dinnerTotal / dinnerMembers.length;
   return (
     <main>
       {/* Scoped tokens used by this page */}
@@ -77,7 +80,10 @@ export default async function Home() {
                 </div>
               </Stack>
               <Card aria-label="Even split example">
-                <SplitVisual total={120} label="Dinner" members={["Alex", "Bea", "Cam", "Drew"]} />
+                <SplitVisual size="lg" total={dinnerTotal} label="Dinner" members={[...dinnerMembers]} />
+                <p className="mt-4 text-xs text-muted-foreground">
+                  {dinnerMembers.length} ways — ${dinnerEach} each
+                </p>
               </Card>
             </Columns>
           </Container>
@@ -127,7 +133,7 @@ export default async function Home() {
               </ul>
             </Stack>
             <Card>
-              <SplitVisual total={96} label="Weekend" members={["You", "A", "B", "C", "D", "E"]} />
+              <SplitVisual size="md" total={96} label="Weekend" members={["You", "A", "B", "C", "D", "E"]} />
             </Card>
           </Columns>
         </Container>
