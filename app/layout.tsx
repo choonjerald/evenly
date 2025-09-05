@@ -14,8 +14,8 @@ export const metadata: Metadata = {
   description: "Fast, clean group expenses.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const { userId } = auth();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { userId } = await auth();
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>

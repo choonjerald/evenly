@@ -33,8 +33,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Home() {
-  const { userId } = auth();
+export default async function Home() {
+  const { userId } = await auth();
   return (
     <main>
       {/* Scoped tokens used by this page */}
