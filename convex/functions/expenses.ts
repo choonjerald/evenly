@@ -187,6 +187,75 @@ export const balances = query({
   },
 });
 
+export const userTotalBalances = query({
+  args: {},
+  handler: async (ctx) => {
+    const me = await requireUser(ctx);
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q: any) => q.eq("userId", me._id))
+      .collect();
+
+    const totals: Record<string, number> = {};
+
+    for (const mem of memberships) {
+      const group = await ctx.db.get(mem.groupId);
+      if (!group) continue;
+
+      const exps = await ctx.db
+        .query("expenses")
+        .withIndex("by_group_createdAt", (q: any) => q.eq("groupId", mem.groupId))
+        .collect();
+
+      let userNet = 0;
+      for (const e of exps) {
+        const participants = e.participants as string[];
+        if (!participants.includes(me._id)) {
+          if (e.payerId === me._id) {
+            userNet += e.amountCents;
+          }
+          continue;
+        }
+
+        const weights = e.weights ?? Object.fromEntries(participants.map((id) => [id, 1]));
+        const totalWeight = participants.reduce((s, u) => s + (weights[u] ?? 1), 0);
+
+        const rows = participants.map((u) => {
+          const quota = (e.amountCents * (weights[u] ?? 1)) / totalWeight;
+          const floor = Math.floor(quota);
+          const rem = quota - floor;
+          return { u, floor, rem };
+        });
+        const sumFloors = rows.reduce((s, r) => s + r.floor, 0);
+        let leftover = e.amountCents - sumFloors;
+        rows.sort((a, b) => (b.rem !== a.rem ? b.rem - a.rem : a.u.localeCompare(b.u)));
+        for (let i = 0; i < leftover; i++) rows[i].floor += 1;
+
+        const myRow = rows.find((r) => r.u === me._id);
+        if (myRow) userNet -= myRow.floor;
+        if (e.payerId === me._id) userNet += e.amountCents;
+      }
+
+      const settlements = await ctx.db
+        .query("settlements")
+        .withIndex("by_group_createdAt", (q: any) => q.eq("groupId", mem.groupId))
+        .collect();
+
+      for (const s of settlements) {
+        if (s.fromUserId === me._id) userNet += s.amountCents;
+        if (s.toUserId === me._id) userNet -= s.amountCents;
+      }
+
+      totals[group.currency] = (totals[group.currency] ?? 0) + userNet;
+    }
+
+    return Object.entries(totals).map(([currency, totalCents]) => ({
+      currency,
+      totalCents,
+    }));
+  },
+});
+
 
 export const updateExpense = mutation({
   args: {

@@ -25,6 +25,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { DashboardSummary } from "@/components/dashboard/dashboard-summary";
 
 export default function Dashboard() {
   const groups =
@@ -125,12 +126,14 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <DashboardSummary />
+
       {groups.length === 0 ? (
         <div className="text-muted-foreground">No groups yet — create your first one.</div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
-            {groups.map((g) => (
-              <Link key={g._id} href={`/g/${g._id}`}>
+          {groups.map((g) => (
+            <Link key={g._id} href={`/g/${g._id}`}>
               <Card className="hover:shadow">
                 <CardHeader>
                   <CardTitle>{g.name}</CardTitle>
